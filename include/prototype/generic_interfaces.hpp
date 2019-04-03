@@ -404,11 +404,8 @@ public:
 
                           //if (my_rank == neighbor.uid().rank()) return;
 
-                          std::vector<TT> container;
+                          std::vector<TT> container(range_loop_size(r)); // enough space
 
-                          gridtools::range_loop(r, [&data, &container](auto const& indices) { container.push_back(data[indices[0]][indices[1]]); });
-
-                          assert(gridtools::range_loop_size(r) == container.size());
 
                           MPI_Irecv(&(*container.begin()),
                                      container.size()*sizeof(TT), MPI_CHAR, neighbor.uid().rank(),
@@ -433,7 +430,11 @@ public:
 
                           //if (my_rank == neighbor.uid().rank()) return;
 
-                          std::vector<TT> container(10); // enough space
+                          std::vector<TT> container;
+
+                          gridtools::range_loop(s, [&data, &container](auto const& indices) { container.push_back(data[indices[0]][indices[1]]); });
+
+                          assert(gridtools::range_loop_size(s) == container.size());
 
                           MPI_Isend(&(*container.begin()),
                                     sizeof(TT)*range_loop_size(s), MPI_CHAR, neighbor.uid().rank(),
@@ -441,8 +442,8 @@ public:
                           fl << "Done\n";
                           fl.flush();
                           MPI_Wait(&mock, &st);
-                          auto it = container.begin();
-                          gridtools::range_loop(s, [&data, &it](auto const& indices) { data[indices[0]][indices[1]] = *it; it++; });
+                          // auto it = container.begin();
+                          // gridtools::range_loop(s, [&data, &it](auto const& indices) { data[indices[0]][indices[1]] = *it; it++; });
 
                       }
                       );
