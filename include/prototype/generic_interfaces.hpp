@@ -387,13 +387,15 @@ public:
         auto my_rank = info.uid().rank();
 
         std::vector<MPI_Request> request(info.list().size());
+        std::vector<std::shared_ptr<std::vector<TT>> > data_ptrs(info.list().size());
+        std::vector< decltype(m_recv_iteration_space(m_id, m_id, info.list().begin()->direction())) > ranges;;
 
         std::for_each(request.begin(), request.end(), [](MPI_Request const &x) { std::cout << "R>" << x << "< "; });
         std::cout << "\n";
 
         int ind=0;
         std::for_each(info.list().begin(), info.list().end(),
-                      [&fl, my_unique_id, my_rank, &ind, &request, data, this] (typename std::remove_reference<decltype(info.list())>::type::value_type const& neighbor)
+                      [&fl, my_unique_id, my_rank, &ind, &request, data, &data_ptrs, &ranges, this] (typename std::remove_reference<decltype(info.list())>::type::value_type const& neighbor)
                       {
                           /** this is a very sketchy firt exaxmple -
                               buffers are contiguous and tags are
@@ -402,10 +404,11 @@ public:
                               (neighbot+directon). */
                           auto r = m_recv_iteration_space(m_id, neighbor.id(), neighbor.direction());
 
-                          //if (my_rank == neighbor.uid().rank()) return;
+                          ranges[ind] = r;
 
-                          std::vector<TT> container(range_loop_size(r)); // enough space
+                          data_ptrs[ind] = std::make_shared<std::vector<TT> >(range_loop_size(r)); // enough space
 
+                          std::vector<TT>& container = *data_ptrs[ind];
 
                           MPI_Irecv(&(*container.begin()),
                                      container.size()*sizeof(TT), MPI_CHAR, neighbor.uid().rank(),
@@ -448,7 +451,7 @@ public:
                       }
                       );
 
-        return request;
+        return {request};//, buffers_ptrs, ranges, data};
 
     }
 };

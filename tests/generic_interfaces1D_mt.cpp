@@ -114,7 +114,14 @@ int main(int argc, char** argv) {
     // which it is associated with?), and return the region to
     // pack/unpack. For regula grids this will take the iteration
     // ranges prototyped in some file here.
-    auto iteration_spaces_send = [](id_type local, id_type remote, dir_type direction) {struct A { int begin() const {return 1;}; int end(){return 2;}}; return A{};}; // send buffer for id
+    auto iteration_spaces_send = [](id_type local, id_type remote, dir_type direction) {
+        struct A {
+            int begin() const {return 1;};
+            int end(){return 2;}
+        };
+        return A{};
+    }; // send buffer for id
+
     auto iteration_spaces_recv = [](id_type local, id_type remote, dir_type direction) {
         struct A {
             dir_type d;
