@@ -16,6 +16,7 @@
   - is a map from a domain ID to a pair made of:
     - neighbors list;
     - unique id of the domain;
+  - topology size is the same as the domain size;
 
 - `generic_pg`:
   - contains only topological information on the neighbors of a domain;
