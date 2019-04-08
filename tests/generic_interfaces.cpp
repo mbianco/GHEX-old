@@ -186,7 +186,7 @@ int main(int argc, char** argv) {
     file.flush();
     file.close();
 
-    data_descriptor_t data_dsc(3);
+    data_descriptor_t data_dsc(3,3);
     std::array<gt::halo_sizes, 2> halos = { gt::halo_sizes{ 1, 1 }, gt::halo_sizes{ 1, 1 } };
 
     gt::regular_grid_descriptor< 2 /* number of partitioned dimensions */ > grid(halos);
