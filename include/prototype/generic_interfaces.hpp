@@ -404,7 +404,7 @@ public:
                               (neighbot+directon). */
                           auto r = m_recv_iteration_space(m_id, neighbor.id(), neighbor.direction());
 
-                          ranges[ind] = r;
+                          ranges.push_back(r);
 
                           data_ptrs[ind] = std::make_shared<std::vector<TT> >(range_loop_size(r)); // enough space
 
