@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12.4)
+cmake_minimum_required(VERSION 3.12.1)
 
 cmake_policy(SET CMP0048 NEW)
 
@@ -10,7 +10,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 
 find_package(MPI REQUIRED)
 
-find_package(GridTools 0.20 REQUIRED)
+find_package(GridTools 0.22 REQUIRED)
 
 message(">>>>>>>>>>>>>>>>${GridTools_MODULE_PATH}")
 

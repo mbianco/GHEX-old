@@ -85,7 +85,7 @@ public:
         }
     };
 
-    static constexpr int rank = 3;
+    static constexpr int rank = 2;
 
     std::array<int, rank> m_sizes;
 
@@ -186,7 +186,7 @@ int main(int argc, char** argv) {
     file.flush();
     file.close();
 
-    data_descriptor_t data_dsc(3);
+    data_descriptor_t data_dsc(5,5);
     std::array<gt::halo_sizes, 2> halos = { gt::halo_sizes{ 1, 1 }, gt::halo_sizes{ 1, 1 } };
 
     gt::regular_grid_descriptor< 2 /* number of partitioned dimensions */ > grid(halos);
@@ -224,9 +224,15 @@ int main(int argc, char** argv) {
     for (auto it = local_ids.begin(); it != local_ids.end(); ++it, ++itc) {
         threads.push_back(std::thread([&file, pg, rank, grid_sizes](id_type id, co_type& co) -> void
                                       {
-                                          id_type data[3][3] = { {{-1,-1}, {-1,-1}, {-1,-1}},
-                                                                 {{-1,-1},    id  , {-1,-1}},
-                                                                 {{-1,-1}, {-1,-1}, {-1,-1}}};
+                                          // id_type data[3][3] = { id, id, id,
+                                          //                        id, id, id,
+                                          //                        id, id, id };
+
+                                          id_type data[5][5] = { id, id, id, id, id,
+                                                                 id, id, id, id, id,
+                                                                 id, id, id, id, id,
+                                                                 id, id, id, id, id,
+                                                                 id, id, id, id, id };
 
                                           std::stringstream ss;
                                           ss << rank;
@@ -238,29 +244,29 @@ int main(int argc, char** argv) {
                                           std::cout << filename << std::endl;
                                           std::ofstream tfile(filename.c_str());
                                           tfile << "\nFILE for " << id << "\n";
-                                          show_data<3>(data, tfile);
+                                          show_data<5>(data, tfile);
                                           tfile << "================================\n";
 
                                           auto hdl = co.exchange(data, tfile);
                                           hdl.wait();
 
-                                          show_data<3>(data, tfile);
+                                          show_data<5>(data, tfile);
                                           tfile << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n";
                                           tfile.flush();
                                           safer_output("thread");
                                           tfile.close();
 
-                                          auto r01 = std::pair<int, int>{mod(id.first-1, grid_sizes[0]), id.second};
-                                          auto r10 = std::pair<int, int>{id.first, mod(id.second-1, grid_sizes[1]*2)};
-                                          auto r21 = std::pair<int, int>{mod(id.first+1, grid_sizes[0]), id.second};
-                                          auto r12 = std::pair<int, int>{id.first, mod(id.second+1, grid_sizes[1]*2)};
+                                          // auto r01 = std::pair<int, int>{mod(id.first-1, grid_sizes[0]), id.second};
+                                          // auto r10 = std::pair<int, int>{id.first, mod(id.second-1, grid_sizes[1]*2)};
+                                          // auto r21 = std::pair<int, int>{mod(id.first+1, grid_sizes[0]), id.second};
+                                          // auto r12 = std::pair<int, int>{id.first, mod(id.second+1, grid_sizes[1]*2)};
 
 
-                                          if (data[0][1] == r01 and data[1][0] == r10 and data[2][1] == r21 and data[1][2] == r12) {
-                                              std::cout << id << ": PASSED\n";
-                                          } else {
-                                              std::cout << id << ": FAILED\n";
-                                          }
+                                          // if (data[0][1] == r01 and data[1][0] == r10 and data[2][1] == r21 and data[1][2] == r12) {
+                                          //     std::cout << id << ": PASSED\n";
+                                          // } else {
+                                          //     std::cout << id << ": FAILED\n";
+                                          // }
                                       },
                                       *it, std::ref(*itc)));
     }

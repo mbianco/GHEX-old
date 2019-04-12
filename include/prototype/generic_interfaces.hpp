@@ -344,17 +344,55 @@ class generic_co {
     IterationSpacesSend m_send_iteration_space;
     IterationSpacesRecv m_recv_iteration_space;
 
+    template <typename D>
     struct future {
-        std::vector<MPI_Request> request;
 
-        future(std::vector<MPI_Request> x) : request{std::move(x)} {}
+        using TT = typename std::remove_all_extents<typename std::remove_pointer<D>::type>::type;
+
+        using unique_id_t = int;
+        using rank_id_t = int;
+        using node_uid_t = node_uid<unique_id_t, rank_id_t>;
+        using neighbor_list_t = neighbor_list<std::list<neighbor_spec<id_type, direction_type, node_uid_t>>>;
+
+        std::vector<MPI_Request> m_requests;
+        std::vector<std::shared_ptr<std::vector<TT>>> m_data_ptrs;
+        IterationSpacesRecv m_iteration_space;
+        id_type m_id;
+        neighbor_list_t m_neighbors_list;
+        D* m_data;
+        std::ostream& m_fl;
+
+        future(std::vector<MPI_Request>&& requests, std::vector<std::shared_ptr<std::vector<TT>>>&& data_ptrs,
+                const IterationSpacesRecv& iteration_space, const id_type id, const neighbor_list_t& neighbors_list, D* data, std::ostream& fl) :
+            m_requests{std::move(requests)},
+            m_data_ptrs{std::move(data_ptrs)},
+            m_iteration_space{iteration_space},
+            m_id{id},
+            m_neighbors_list{neighbors_list},
+            m_fl {fl},
+            m_data{data} {}
 
         void wait() {
+
             MPI_Status st;
-            for (auto& r : request) {
-                if (r != 0) MPI_Wait(&r, &st);
+            int idx1D, idx_neigh;
+
+            for (auto& request : m_requests) {
+                if (request != 0) MPI_Wait(&request, &st);
             }
+
+            idx_neigh = 0;
+            std::for_each(m_neighbors_list.begin(), m_neighbors_list.end(),
+                    [this, &idx1D, &idx_neigh] (auto const& neighbor) {
+                        auto r = m_iteration_space(m_id, neighbor.id(), neighbor.direction());
+                        idx1D = 0;
+                        gridtools::range_loop(r, [this, &idx1D, &idx_neigh] (auto const& idx2D) {
+                                m_data[idx2D[0]][idx2D[1]] = (*(m_data_ptrs[idx_neigh]))[idx1D++];});
+                        ++idx_neigh;
+                    });
+
         }
+
     };
 
 
@@ -376,7 +414,7 @@ public:
     id_type domain_id() const { return m_id; };
 
     template <typename D>
-    future exchange(D* data, std::ostream& fl) {
+    future<D> exchange(D* data, std::ostream& fl) {
         using TT = typename std::remove_all_extents<typename std::remove_pointer<D>::type>::type;
 
         auto const& info = m_pg.id_info(m_id);
@@ -388,24 +426,22 @@ public:
 
         std::vector<MPI_Request> request(info.list().size());
         std::vector<std::shared_ptr<std::vector<TT>> > data_ptrs(info.list().size());
-        std::vector< decltype(m_recv_iteration_space(m_id, m_id, info.list().begin()->direction())) > ranges;;
 
         std::for_each(request.begin(), request.end(), [](MPI_Request const &x) { std::cout << "R>" << x << "< "; });
         std::cout << "\n";
 
         int ind=0;
+
         std::for_each(info.list().begin(), info.list().end(),
-                      [&fl, my_unique_id, my_rank, &ind, &request, data, &data_ptrs, &ranges, this] (typename std::remove_reference<decltype(info.list())>::type::value_type const& neighbor)
+                      [&fl, my_unique_id, my_rank, &ind, &request, data, &data_ptrs, this] (typename std::remove_reference<decltype(info.list())>::type::value_type const& neighbor)
                       {
                           /** this is a very sketchy firt exaxmple -
                               buffers are contiguous and tags are
                               wrong (tags should not identigy
                               neighbors, but messages
                               (neighbot+directon). */
+
                           auto r = m_recv_iteration_space(m_id, neighbor.id(), neighbor.direction());
-
-                          ranges[ind] = r;
-
                           data_ptrs[ind] = std::make_shared<std::vector<TT> >(range_loop_size(r)); // enough space
 
                           std::vector<TT>& container = *data_ptrs[ind];
@@ -437,7 +473,8 @@ public:
 
                           gridtools::range_loop(s, [&data, &container](auto const& indices) { container.push_back(data[indices[0]][indices[1]]); });
 
-                          assert(gridtools::range_loop_size(s) == container.size());
+                          assert(range_loop_size(s) == container.size());
+                          //assert(gridtools::range_loop_size(s) == container.size());
 
                           MPI_Isend(&(*container.begin()),
                                     sizeof(TT)*range_loop_size(s), MPI_CHAR, neighbor.uid().rank(),
@@ -451,7 +488,7 @@ public:
                       }
                       );
 
-        return {request};//, buffers_ptrs, ranges, data};
+        return {std::move(request), std::move(data_ptrs), m_recv_iteration_space, m_id, info.list(), data, fl};
 
     }
 };
