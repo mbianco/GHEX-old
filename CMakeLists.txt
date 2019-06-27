@@ -53,3 +53,6 @@ target_link_libraries(generic_interfaces1D ${exe_LIBS}  ${MPI_CXX_LIBRARIES} Gri
 
 add_executable( generic_interfaces1D_mt tests/generic_interfaces1D_mt.cpp )
 target_link_libraries(generic_interfaces1D_mt ${exe_LIBS}  ${MPI_CXX_LIBRARIES} GridTools::gridtools GridTools::gcl)
+
+add_executable( test_low_level tests/test_low_level.cpp )
+target_link_libraries(test_low_level ${exe_LIBS}  ${MPI_CXX_LIBRARIES} GridTools::gridtools GridTools::gcl)
