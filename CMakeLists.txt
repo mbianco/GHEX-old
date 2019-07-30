@@ -6,7 +6,7 @@ project(GHEX VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 14)
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wpedantic")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wpedantic") # Last option is because of a problem with GCC9. Try to remove with more releases of the compiler
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
@@ -15,7 +15,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(MPI REQUIRED)
-find_package(GridTools REQUIRED)
+find_package(GridTools REQUIRED HINTS ${GridTools_DIR})
+#find_package(Boost REQUIRED)
 find_package(Boost COMPONENTS mpi REQUIRED)
 
 message(">>>>>>>>>>>>>>>>${GridTools_MODULE_PATH}")
@@ -30,29 +31,43 @@ target_link_libraries(GHEX_libs INTERFACE GridTools::gridtools)
 
 enable_testing()
 
-set(GTEST_DIR ${GridTools_DIR}/_deps/googletest-src)
+set(GHEX_GTEST_DIR ${GridTools_DIR}/_deps/googletest-src CACHE FILEPATH "Place where to find googletest installation")
 
 find_path(GTEST_INC_DIR
     "gtest/gtest.h"
     HINTS
-    ${GTEST_DIR}/include
-    ${GTEST_DIR}/googletest/include)
+    ${GHEX_GTEST_DIR}/include
+    ${GHEX_GTEST_DIR}/googletest/include)
 if(NOT GTEST_INC_DIR)
-    message(FATAL_ERROR "Couldn't find gtest/gtest.h under folder GTEST_DIR = " ${GTEST_DIR})
+    message(FATAL_ERROR "Couldn't find gtest/gtest.h under folder GHEX_GTEST_DIR = " ${GHEX_GTEST_DIR})
 endif()
 
 find_path(GTEST_SOURCE_DIR
     gtest-all.cc
     HINTS
-    ${GTEST_DIR}/src
-    ${GTEST_DIR}/googletest/src
+    ${GHEX_GTEST_DIR}/src
+    ${GHEX_GTEST_DIR}/googletest/src
 )
 if(NOT GTEST_SOURCE_DIR)
-    message(FATAL_ERROR "Couldn't find gtest-all.cc under folder GTEST_DIR = " ${GTEST_DIR})
+    message(FATAL_ERROR "Couldn't find gtest-all.cc under folder GHEX_TEST_DIR = " ${GHEX_GTEST_DIR})
 endif()
 
 set(GTEST_LIB_SOURCES ${GTEST_SOURCE_DIR}/gtest-all.cc)
 set(GTEST_INCLUDE_DIRS ${GTEST_INC_DIR} ${GTEST_SOURCE_DIR} ${GTEST_SOURCE_DIR}/..)
+
+add_library(gtest_main_mt ${GTEST_LIB_SOURCES} ${GTEST_MAIN_SOURCES} ./utils/gtest_main.cpp )
+target_include_directories(gtest_main_mt PRIVATE ${CMAKE_SOURCE_DIR}/include ${GTEST_INCLUDE_DIRS})
+target_link_libraries(gtest_main_mt Boost::mpi MPI::MPI_CXX GridTools::gridtools )
+
+add_library(gtest_main_bench ${GTEST_LIB_SOURCES} ${GTEST_MAIN_SOURCES} ./utils/gtest_main_bench.cpp )
+target_link_libraries(gtest_main_bench Boost::mpi MPI::MPI_CXX GridTools::gridtools )
+target_include_directories(gtest_main_bench PRIVATE ${CMAKE_SOURCE_DIR}/include ${GTEST_INCLUDE_DIRS})
+
+
+add_library(gtest_main_bench_mt ${GTEST_LIB_SOURCES} ${GTEST_MAIN_SOURCES} ./utils/gtest_main_bench.cpp )
+target_link_libraries(gtest_main_bench_mt Boost::mpi MPI::MPI_CXX GridTools::gridtools )
+target_include_directories(gtest_main_bench_mt PRIVATE ${CMAKE_SOURCE_DIR}/include ${GTEST_INCLUDE_DIRS})
+target_compile_definitions(gtest_main_bench_mt PRIVATE GHEX_BENCHMARKS_USE_MULTI_THREADED_MPI)
 
 add_subdirectory(tests)
 add_subdirectory(benchmarks)
