@@ -10,6 +10,16 @@ mpi::communicator comm;
 
 bool comm_ready = false;
 
+void send_callback(int, int, mpi::shared_message<> smsg) {
+
+    /** Can we change the above message argument to &?
+	If yes, then use_count()==1 would indicate completion of the last comm request.
+     */
+    if(2 == smsg.use_count())
+	comm_ready = true;
+    // std::cerr << mpi_rank  << ": sent to " << rank << " use_count " << smsg.use_count() << "\n";
+}
+
 void submit_sends() {
 
     mpi::shared_message<> smsg{SIZE};
@@ -21,25 +31,35 @@ void submit_sends() {
 	buffer[i] = i%256;
     }
     smsg.set_size(SIZE);
-
-    /* send message to neighbors */
     std::array<int, 3> dsts = {1,2,3};
-    comm.send_multi(smsg, dsts, 42);
-    // std::cerr << "smsg.use_count " << smsg.use_count() << "\n" ;
 
-    /** we don't care about the send completion: mark comm as ready */
-    comm_ready = true;
+    /** two options: with, or without callback on send completion */
+    if(true){
+
+	/* send message to neighbors: with completion callback */
+	comm.send_multi(smsg, dsts, 42, send_callback);
+    } else {
+
+	/** we don't care about the send completion: mark comm as ready */
+	comm.send_multi(smsg, dsts, 42);
+	comm_ready = true;
+    }
+    // std::cerr << "initial smsg.use_count " << smsg.use_count() << "\n" ;
 }
 
-void recv_callback(int rank, int tag, mpi::shared_message<> rmsg) {
+void recv_callback(int, int, mpi::shared_message<>) {
+
+    /** Can we change the above message argument to &?
+	If yes, then use_count()==1 would indicate completion of the last comm request.
+     */
     comm_ready = true;
-    // std::cout << mpi_rank  << ": received from " << rank << " size " << rmsg.size() << "\n";
+    // std::cerr << mpi_rank  << ": received from " << rank << " use_count " << rmsg.use_count() << "\n";
 }
 
 void submit_recvs() {
     mpi::shared_message<> rmsg{SIZE, SIZE};
     comm.recv(rmsg, 0, 42, recv_callback);
-    // std::cerr << "rmsg.use_count " << rmsg.use_count() << "\n" ;
+    // std::cerr << "initial rmsg.use_count " << rmsg.use_count() << "\n" ;
 }
 
 TEST(transport, send_multi) {
@@ -65,7 +85,7 @@ TEST(transport, send_multi) {
     /* [...] */
 	
     /** submit the communication requests */
-    if (mpi_rank == 0) {
+    if (0 == mpi_rank) {
 	submit_sends();	
     } else {
 	submit_recvs();

@@ -187,13 +187,36 @@ namespace mpi {
         template <typename Allc, typename Neighs>
         void send_multi(shared_message<Allc>& msg, Neighs const& neighs, int tag) {
             for (auto id : neighs) {
-                auto keep_message = [msg] (int, int, mesg_type) {
-                    /*if (rank == 0) std::cout  << "KM DST " << p << ", TAG " << t << " USE COUNT " << msg.use_count() << "\n";*/
-                };
+
+		/** need this to keep the message usage counter until completion
+		 *  NOTE: keeping the msg in [msg] = (...) makes two msg refs per send request.
+		 *  Passing it as callback argument makes one msg ref per request
+		 */
+		auto keep_message = [] (int, int, mesg_type) {
+                //     /*if (rank == 0) std::cout  << "KM DST " << p << ", TAG " << t << " USE COUNT " << msg.use_count() << "\n";*/
+		};
                 send(msg, id, tag, std::move(keep_message));
             }
         }
 
+        /** Send a message (shared_message type) to a set of destinations listed in
+         * a container, with a same tag.
+         *
+         * @tparam Allc   Allocator of the dshared_message (deduced)
+         * @tparam Neighs Container with the neighbor IDs
+         * @tparam CallBack Callback function type
+         *
+         * @param msg    The message to send (must be shared_message<Allc> type
+         * @param neighs Container of the IDs of the recipients
+         * @param tag    Tag of the message
+         * @param cb     User-defined callback function to invoke on completion
+         */
+	template <typename Allc, typename Neighs, typename CallBack>
+        void send_multi(shared_message<Allc>& msg, Neighs const& neighs, int tag, CallBack&& cb) {
+            for (auto id : neighs) {
+                send(msg, id, tag, cb);
+            }
+        }
 
         /** Function to invoke to poll the transport layer and check for the completions
          * of the operations without a future associated to them (that is, they are associated
