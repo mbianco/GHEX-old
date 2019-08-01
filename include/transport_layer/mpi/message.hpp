@@ -106,9 +106,9 @@ namespace mpi {
          * user uses memcpy from .data() pointer and then set the size for sending.
          *
          * @param s New size
-        */
-        void size(size_t s) {
-            assert(s <= capacity);
+	 */
+        void set_size(size_t s) {
+            assert(s <= m_capacity);
             m_size = s;
         }
 
@@ -203,7 +203,6 @@ namespace mpi {
 
         static constexpr bool can_be_shared = true;
 
-
         /** Constructor that take capacity and allocator. Size is kept to 0
          *
          * @param capacity Capacity
@@ -220,9 +219,9 @@ namespace mpi {
          * @param size
          * @param alloc Allocator instance
          */
-         shared_message(size_t capacity, size_t size, Allocator allc = Allocator{})
+	shared_message(size_t capacity, size_t size, Allocator allc = Allocator{})
             : m_s_message{std::make_shared<message<Allocator>>(capacity, size, allc)}
-            {}
+	{ }
 
         /* Showing these to highlight the semantics */
         shared_message(shared_message const& ) = default;
@@ -262,7 +261,7 @@ namespace mpi {
          * user uses memcpy from .data() pointer and then set the size for sending.
          *
          * @param s New size
-        */
+	 */
         void set_size(size_t s) {
             return m_s_message->set_size(s);
         }
