@@ -66,11 +66,12 @@ namespace mpi {
 
         using tag_type = int;
         using rank_type = int;
+	using mesg_type = mpi::shared_message<>;
         using send_future = my_dull_future;
         using recv_future = my_dull_future;
         using common_future = my_dull_future;
 
-        std::unordered_map<MPI_Request, std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type>> m_call_backs;
+        std::unordered_map<MPI_Request, std::tuple<std::function<void(rank_type, tag_type, mesg_type)>, rank_type, tag_type, mesg_type>> m_call_backs;
 
         MPI_Comm m_mpi_comm = MPI_COMM_WORLD;
 
@@ -115,7 +116,7 @@ namespace mpi {
         void send(MsgType const& msg, rank_type dst, tag_type tag, CallBack&& cb) {
             MPI_Request req;
             CHECK_MPI_ERROR(MPI_Isend(msg.data(), msg.size(), MPI_BYTE, dst, tag, m_mpi_comm, &req));
-            m_call_backs.emplace(std::make_pair(req, std::make_tuple(std::forward<CallBack>(cb), dst, tag) ));
+	    m_call_backs.emplace(std::make_pair(req, std::make_tuple(std::forward<CallBack>(cb), dst, tag, msg) ));
         }
 
         /** Send a message to a destination with the given tag. This function blocks until the message has been sent and
@@ -170,8 +171,7 @@ namespace mpi {
         void recv(MsgType& msg, rank_type src, tag_type tag, CallBack&& cb) {
             MPI_Request request;
             CHECK_MPI_ERROR(MPI_Irecv(msg.data(), msg.size(), MPI_BYTE, src, tag, m_mpi_comm, &request));
-
-            m_call_backs.emplace(std::make_pair(request, std::make_tuple(std::forward<CallBack>(cb), src, tag) ));
+	    m_call_backs.emplace(std::make_pair(request, std::make_tuple(std::forward<CallBack>(cb), src, tag, msg) ));
         }
 
         /** Send a message (shared_message type) to a set of destinations listed in
@@ -187,7 +187,7 @@ namespace mpi {
         template <typename Allc, typename Neighs>
         void send_multi(shared_message<Allc>& msg, Neighs const& neighs, int tag) {
             for (auto id : neighs) {
-                auto keep_message = [msg] (int, int) {
+                auto keep_message = [msg] (int, int, mesg_type) {
                     /*if (rank == 0) std::cout  << "KM DST " << p << ", TAG " << t << " USE COUNT " << msg.use_count() << "\n";*/
                 };
                 send(msg, id, tag, std::move(keep_message));
@@ -229,8 +229,9 @@ namespace mpi {
                     auto f = std::move(std::get<0>(i->second));
                     auto x = std::get<1>(i->second);
                     auto y = std::get<2>(i->second);
+                    auto z = std::get<3>(i->second);
                     i = m_call_backs.erase(i); i = m_call_backs.end(); // must use i.first andnot r, since r is modified
-                    f(x, y);
+                    f(x, y, z);
                     break;
                 } else {
                     ++i;
