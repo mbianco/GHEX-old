@@ -187,10 +187,7 @@ namespace mpi {
         void send_multi(shared_message<Allc>& msg, Neighs const& neighs, int tag) {
             for (auto id : neighs) {
 
-		/** need this to keep the message usage counter until completion
-		 *  NOTE: keeping the msg in [msg] = (...) makes two msg refs per send request.
-		 *  Passing it as callback argument makes one msg ref per request
-		 */
+		/** need this to keep the message usage counter until completion */
 		auto keep_message = [msg] (int, int) {
                 //     /*if (rank == 0) std::cout  << "KM DST " << p << ", TAG " << t << " USE COUNT " << msg.use_count() << "\n";*/
 		};

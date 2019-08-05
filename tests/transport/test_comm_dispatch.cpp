@@ -11,18 +11,18 @@ mpi::communicator comm;
 bool comm_ready = false;
 
 struct send_callback {
-    mpi::shared_message<> smsg;
+    mpi::shared_message<> msg;
 
-    send_callback(mpi::shared_message<> m) : smsg{m} {}
+    send_callback(mpi::shared_message<> m) : msg{m} {}
 
     void operator()(int, int) {
 
         /** Can we change the above message argument to &?
-        If yes, then use_count()==1 would indicate completion of the last comm request.
+	    If yes, then use_count()==1 would indicate completion of the last comm request.
         */
-        if(2 == smsg.use_count())
+        if(1 == msg.use_count())
             comm_ready = true;
-        // std::cerr << mpi_rank  << ": sent to " << rank << " use_count " << smsg.use_count() << "\n";
+	// std::cerr << mpi_rank  << ": sent to " << rank << " use_count " << msg.use_count() << "\n";
     }
 };
 
@@ -44,10 +44,10 @@ void submit_sends() {
 
 	/* send message to neighbors: with completion callback */
 	comm.send_multi(smsg, dsts, 42, send_callback{smsg}); // This line is the same as
-//	comm.send_multi(smsg, dsts, 42, [smsg](int, int) {
-//            if(2 == smsg.use_count())
-//            comm_ready = true;
-//            });
+	// comm.send_multi(smsg, dsts, 42, [smsg](int, int) {
+	// 	if(1 == smsg.use_count())
+	// 	    comm_ready = true;
+	//     });
 
     } else {
 
@@ -58,18 +58,20 @@ void submit_sends() {
     // std::cerr << "initial smsg.use_count " << smsg.use_count() << "\n" ;
 }
 
-void recv_callback(int, int) {
+struct recv_callback {
+    mpi::shared_message<> msg;
+    
+    recv_callback(mpi::shared_message<> m) : msg{m} {}
 
-    /** Can we change the above message argument to &?
-	If yes, then use_count()==1 would indicate completion of the last comm request.
-     */
-    comm_ready = true;
-    // std::cerr << mpi_rank  << ": received from " << rank << " use_count " << rmsg.use_count() << "\n";
-}
+    void operator()(int, int) {
+	comm_ready = true;
+	// std::cerr << mpi_rank  << ": received from " << rank << " use_count " << msg.use_count() << "\n";
+    }
+};
 
 void submit_recvs() {
     mpi::shared_message<> rmsg{SIZE, SIZE};
-    comm.recv(rmsg, 0, 42, recv_callback); // Similar trick with a callable/lambda can work on receives
+    comm.recv(rmsg, 0, 42, recv_callback{rmsg});
     // std::cerr << "initial rmsg.use_count " << rmsg.use_count() << "\n" ;
 }
 
@@ -114,7 +116,7 @@ TEST(transport, send_multi) {
     /** make sure all comm has actually been completed before exiting MPI.
 	Something like this needs to be done in comm destructor,
 	otherwise MPI aborts with incomplete comm errors.
-     */
+    */
     while(comm.progress());
     MPI_Barrier(MPI_COMM_WORLD);
 
