@@ -10,15 +10,21 @@ mpi::communicator comm;
 
 bool comm_ready = false;
 
-void send_callback(int, int, mpi::shared_message<> smsg) {
+struct send_callback {
+    mpi::shared_message<> smsg;
 
-    /** Can we change the above message argument to &?
-	If yes, then use_count()==1 would indicate completion of the last comm request.
-     */
-    if(2 == smsg.use_count())
-	comm_ready = true;
-    // std::cerr << mpi_rank  << ": sent to " << rank << " use_count " << smsg.use_count() << "\n";
-}
+    send_callback(mpi::shared_message<> m) : smsg{m} {}
+
+    void operator()(int, int) {
+
+        /** Can we change the above message argument to &?
+        If yes, then use_count()==1 would indicate completion of the last comm request.
+        */
+        if(2 == smsg.use_count())
+            comm_ready = true;
+        // std::cerr << mpi_rank  << ": sent to " << rank << " use_count " << smsg.use_count() << "\n";
+    }
+};
 
 void submit_sends() {
 
@@ -37,7 +43,12 @@ void submit_sends() {
     if(true){
 
 	/* send message to neighbors: with completion callback */
-	comm.send_multi(smsg, dsts, 42, send_callback);
+	comm.send_multi(smsg, dsts, 42, send_callback{smsg}); // This line is the same as
+//	comm.send_multi(smsg, dsts, 42, [smsg](int, int) {
+//            if(2 == smsg.use_count())
+//            comm_ready = true;
+//            });
+
     } else {
 
 	/** we don't care about the send completion: mark comm as ready */
@@ -47,7 +58,7 @@ void submit_sends() {
     // std::cerr << "initial smsg.use_count " << smsg.use_count() << "\n" ;
 }
 
-void recv_callback(int, int, mpi::shared_message<>) {
+void recv_callback(int, int) {
 
     /** Can we change the above message argument to &?
 	If yes, then use_count()==1 would indicate completion of the last comm request.
@@ -58,7 +69,7 @@ void recv_callback(int, int, mpi::shared_message<>) {
 
 void submit_recvs() {
     mpi::shared_message<> rmsg{SIZE, SIZE};
-    comm.recv(rmsg, 0, 42, recv_callback);
+    comm.recv(rmsg, 0, 42, recv_callback); // Similar trick with a callable/lambda can work on receives
     // std::cerr << "initial rmsg.use_count " << rmsg.use_count() << "\n" ;
 }
 
@@ -80,19 +91,19 @@ TEST(transport, send_multi) {
     */
 
     // while(!end_of_simulation){
-    
+
     /** pick a ready patch an compute on it */
     /* [...] */
-	
+
     /** submit the communication requests */
     if (0 == mpi_rank) {
-	submit_sends();	
+	submit_sends();
     } else {
 	submit_recvs();
     }
-    
+
     /** progress any of the pending communication requests:
-	might progress any comm of any patch, not necessarily 
+	might progress any comm of any patch, not necessarily
 	the recently posted requests. NOTE: Need some loop here,
 	but not in the real DISPATCH scheduler.
     */
@@ -106,6 +117,6 @@ TEST(transport, send_multi) {
      */
     while(comm.progress());
     MPI_Barrier(MPI_COMM_WORLD);
-			     
+
     EXPECT_TRUE(comm_ready);
 }
