@@ -6,14 +6,14 @@
 
 const int SIZE = 4000000;
 int mpi_rank;
-mpi::communicator comm;
+gridtools::mpi::communicator comm;
 
 bool comm_ready = false;
 
 struct send_callback {
-    mpi::shared_message<> msg;
+    gridtools::mpi::shared_message<> msg;
 
-    send_callback(mpi::shared_message<> m) : msg{m} {}
+    send_callback(gridtools::mpi::shared_message<> m) : msg{m} {}
 
     void operator()(int, int) {
 
@@ -28,7 +28,7 @@ struct send_callback {
 
 void submit_sends() {
 
-    mpi::shared_message<> smsg{SIZE};
+    gridtools::mpi::shared_message<> smsg{SIZE};
     unsigned char *buffer;
 
     /* fill the buffer directly (memcpy) */
@@ -36,7 +36,7 @@ void submit_sends() {
     for (int i = 0; i < SIZE; ++i) {
 	buffer[i] = i%256;
     }
-    smsg.set_size(SIZE);
+    smsg.resize(SIZE);
     std::array<int, 3> dsts = {1,2,3};
 
     /** two options: with, or without callback on send completion */
@@ -59,9 +59,9 @@ void submit_sends() {
 }
 
 struct recv_callback {
-    mpi::shared_message<> msg;
+    gridtools::mpi::shared_message<> msg;
     
-    recv_callback(mpi::shared_message<> m) : msg{m} {}
+    recv_callback(gridtools::mpi::shared_message<> m) : msg{m} {}
 
     void operator()(int, int) {
 	comm_ready = true;
@@ -70,7 +70,7 @@ struct recv_callback {
 };
 
 void submit_recvs() {
-    mpi::shared_message<> rmsg{SIZE, SIZE};
+    gridtools::mpi::shared_message<> rmsg{SIZE, SIZE};
     comm.recv(rmsg, 0, 42, recv_callback{rmsg});
     // std::cerr << "initial rmsg.use_count " << rmsg.use_count() << "\n" ;
 }
