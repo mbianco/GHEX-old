@@ -5,8 +5,10 @@
 #include <unordered_map>
 #include <tuple>
 #include <cassert>
-#include "message.hpp"
+#include "./message.hpp"
+#include "./communicator_traits.hpp"
 
+namespace gridtools {
 namespace mpi {
 
 
@@ -19,11 +21,11 @@ namespace mpi {
     /** Ironic name (ha! ha!) for the future returned by the send and receive
      * operations of a communicator object to check or wait on their status.
      */
-    struct my_dull_future {
+    struct mpi_future {
         MPI_Request m_req;
 
-        my_dull_future() = default;
-        my_dull_future(MPI_Request req) : m_req{req} {}
+        mpi_future() = default;
+        mpi_future(MPI_Request req) : m_req{req} {}
 
         /** Function to wait until the operation completed */
         void wait() {
@@ -39,7 +41,7 @@ namespace mpi {
             MPI_Status status;
             int flag;
             CHECK_MPI_ERROR(MPI_Test(&m_req, &flag, &status));
-            return !flag;
+            return flag;
         }
 
 
@@ -63,16 +65,19 @@ namespace mpi {
      * Each message will be sent and received with a tag, bot of type int
      */
     struct communicator {
-
+    private:
         using tag_type = int;
         using rank_type = int;
-        using send_future = my_dull_future;
-        using recv_future = my_dull_future;
-        using common_future = my_dull_future;
 
         std::unordered_map<MPI_Request, std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type>> m_call_backs;
 
-        MPI_Comm m_mpi_comm = MPI_COMM_WORLD;
+        MPI_Comm m_mpi_comm;
+    public:
+
+        using send_future = mpi_future;
+        using recv_future = mpi_future;
+
+        communicator(communicator_traits const& ct = communicator_traits{}) : m_mpi_comm{ct.communicator()} {}
 
         ~communicator() {
             if (m_call_backs.size() != 0) {
@@ -93,7 +98,7 @@ namespace mpi {
          * @return A future that will be ready when the message can be reused (e.g., filled with new data to send)
          */
         template <typename MsgType>
-        my_dull_future send(MsgType const& msg, rank_type dst, tag_type tag) {
+        [[nodiscard]] mpi_future send(MsgType const& msg, rank_type dst, tag_type tag) {
             MPI_Request req;
             CHECK_MPI_ERROR(MPI_Isend(msg.data(), msg.size(), MPI_BYTE, dst, tag, m_mpi_comm, &req));
             return req;
@@ -128,11 +133,8 @@ namespace mpi {
          * @param tag Tag associated with the message
          */
         template <typename MsgType>
-        void send_safe(MsgType const& msg, rank_type dst, tag_type tag) {
-            MPI_Request req;
-            MPI_Status status;
-            CHECK_MPI_ERROR(MPI_Isend(msg.data(), msg.size(), MPI_BYTE, dst, tag, m_mpi_comm, &req));
-            CHECK_MPI_ERROR(MPI_Wait(&req, &status));
+        void blocking_send(MsgType const& msg, rank_type dst, tag_type tag) {
+            CHECK_MPI_ERROR(MPI_Send(msg.data(), msg.size(), MPI_BYTE, dst, tag, m_mpi_comm));
         }
 
         /** Receive a message from a destination with the given tag.
@@ -148,18 +150,18 @@ namespace mpi {
          * @return A future that will be ready when the message can be read
          */
         template <typename MsgType>
-        my_dull_future recv(MsgType& msg, rank_type src, tag_type tag) {
+        [[nodiscard]] mpi_future recv(MsgType& msg, rank_type src, tag_type tag) {
             MPI_Request request;
             CHECK_MPI_ERROR(MPI_Irecv(msg.data(), msg.size(), MPI_BYTE, src, tag, m_mpi_comm, &request));
             return request;
         }
 
         /** Receive a message from a source with the given tag. When the message arrives, and
-         * the message ready to be read, the given call-back is invoked with the destination
+         * the message ready to be read, the given call-back is invoked with the source
          *  and tag of the message sent.
          *
          * @tparam MsgType message type (this could be a std::vector<unsigned char> or a message found in message.hpp)
-         * @tparam CallBack Funciton to call when the message has been sent and the message ready for reuse
+         * @tparam CallBack Funciton to call when the message has been sent and the message ready to be read
          *
          * @param msg Const reference to a message that will contain the data
          * @param src Source of the message
@@ -233,9 +235,9 @@ namespace mpi {
                     if (flag) {
                         int count;
                         MPI_Get_count(&st, MPI_CHAR, &count);
-                        std::cout << "\t\t\t\t\t\t\t\t\t\t\t\tA message has been found: " << st.MPI_TAG << "\n";
+                        std::cout << "A message has been found with TAG " << st.MPI_TAG << " and size " << count << "bytes\n";
                     } else {
-                        std::cout << "\t\t\t\t\t\t\t\t\t\t\t\tNo message has been found:\n";
+                        std::cout << "No message has been found\n";
                     }
                 }
 #endif
@@ -248,8 +250,7 @@ namespace mpi {
                     auto f = std::move(std::get<0>(i->second));
                     auto x = std::get<1>(i->second);
                     auto y = std::get<2>(i->second);
-                    //auto z = std::get<3>(i->second);
-                    i = m_call_backs.erase(i); i = m_call_backs.end(); // must use i.first andnot r, since r is modified
+                    i = m_call_backs.erase(i); i = m_call_backs.end();
                     f(x, y);
                     break;
                 } else {
@@ -272,7 +273,7 @@ namespace mpi {
                 CHECK_MPI_ERROR(MPI_Wait(&r, &st));
                 CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
                 result &= flag;
-                i = m_call_backs.erase(i); // must use i.first andnot r, since r is modified
+                i = m_call_backs.erase(i);
             }
 
             return result;
@@ -280,3 +281,4 @@ namespace mpi {
     };
 
 } //namespace mpi
+} // namespace gridtools
