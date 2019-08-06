@@ -14,13 +14,13 @@ namespace ghex {
 	struct persistent_pointer {
 	    T* ptr;
 	    std::size_t n;
-	    persistent_pointer(const std::size_t size = 0, T* p = NULL): ptr{p}, n{size}{}
+	    persistent_pointer(const std::size_t size, T* p): ptr{p}, n{size}{}
 	};
 
 	/** comparator for free allocation multiset: store by (non-unique) allocation size */	
 	template <typename T>
 	struct compare_size {
-	    constexpr bool operator() (const persistent_pointer<T> &x, const persistent_pointer<T> &y){
+	    bool operator() (const persistent_pointer<T> &x, const persistent_pointer<T> &y){
 		return x.n < y.n;
 	    }
 	};
@@ -28,7 +28,7 @@ namespace ghex {
 	/** comparator for used allocation set: store by (unique) pointer value */	
 	template <typename T>
 	struct compare_ptr {
-	    constexpr bool operator() (const persistent_pointer<T> &x, const persistent_pointer<T> &y){
+	    bool operator() (const persistent_pointer<T> &x, const persistent_pointer<T> &y){
 		return x.ptr < y.ptr;
 	    }
 	};
@@ -60,12 +60,12 @@ namespace ghex {
 		}
 
 		/** if no free allocations, make a new one */
-		const persistent_pointer<T> node{n, ba.allocate(n)};
-		used_alloc.insert(node);
+		T* ptr = ba.allocate(n);
+		used_alloc.emplace(n, ptr);
 #if (GHEX_DEBUG_LEVEL == 2)
-		std::cerr << "allocate new " << (std::size_t)node.ptr << "\n";
+		std::cerr << "allocate new " << (std::size_t)ptr << "\n";
 #endif
-		return node.ptr;
+		return ptr;
             }
 
             void deallocate(T* p, std::size_t)

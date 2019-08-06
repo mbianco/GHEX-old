@@ -1,5 +1,5 @@
 
-set(_tests test_low_level test_low_level_x test_send_multi test_cancel_request test_comm_dispatch)
+set(_tests test_low_level test_low_level_x test_send_multi test_cancel_request test_comm_dispatch test_persistent_allocator)
 
 
 
