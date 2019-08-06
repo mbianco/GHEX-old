@@ -2,6 +2,7 @@
 #include <cstring>
 #include <memory>
 
+namespace gridtools {
 namespace mpi {
 
     /** message is a class that represents a buffer of bytes. Each transport
@@ -41,7 +42,7 @@ namespace mpi {
             , m_size{0}
         {
             if (m_capacity > 0)
-                m_payload = m_alloc.allocate(m_capacity);
+                m_payload = std::allocator_traits<Allocator>::allocate(m_alloc, m_capacity);
         }
 
         /** Constructor that take capacity size and allocator.
@@ -52,14 +53,10 @@ namespace mpi {
          * @param alloc Allocator instance
          */
         message(size_t capacity, size_t size, Allocator alloc = Allocator{})
-            : m_alloc{alloc}
-            , m_capacity{capacity}
-            , m_payload(nullptr)
-            , m_size{size}
+            : message(capacity, alloc)
         {
+            m_size = size;
             assert(m_size <= m_capacity);
-            if (m_capacity > 0)
-                m_payload = m_alloc.allocate(m_capacity);
         }
 
         message(message const&) = delete;
@@ -74,11 +71,11 @@ namespace mpi {
         }
 
         ~message() {
-            if (m_payload) m_alloc.deallocate(m_payload, m_capacity);
+            if (m_payload) std::allocator_traits<Allocator>::deallocate(m_alloc, m_payload, m_capacity);
             m_payload = nullptr;
         }
 
-        constexpr bool is_shared() { return false; }
+        constexpr bool is_shared() { return can_be_shared; }
         size_t use_count() const { return 1; }
 
         /** This is the main function used by the communicator to access the
@@ -106,8 +103,8 @@ namespace mpi {
          * user uses memcpy from .data() pointer and then set the size for sending.
          *
          * @param s New size
-	 */
-        void set_size(size_t s) {
+        */
+        void resize(size_t s) {
             assert(s <= m_capacity);
             m_size = s;
         }
@@ -124,19 +121,19 @@ namespace mpi {
         unsigned char* begin() { return m_payload; }
         unsigned char* end() const { return m_payload + m_size; }
 
-        /** Function to resize a message to a new capacity. Size is unchanged */
-        void resize(size_t new_capacity) {
+        /** Function to set a message to a new capacity. Size is unchanged */
+        void reserve(size_t new_capacity) {
             assert(new_capacity >= m_size);
 
             if (m_payload) {
-                byte* new_storage = m_alloc.allocate(new_capacity);
+                byte* new_storage = std::allocator_traits<Allocator>::allocate(m_alloc, new_capacity);
                 std::memcpy((void*)new_storage, (void*)m_payload, m_size);
 
-                m_alloc.deallocate(m_payload, m_capacity);
+                std::allocator_traits<Allocator>::deallocate(m_alloc, m_payload, m_capacity);
                 m_payload = new_storage;
                 m_capacity = new_capacity;
             } else {
-                byte* new_storage = m_alloc.allocate(new_capacity);
+                byte* new_storage = std::allocator_traits<Allocator>::allocate(m_alloc, new_capacity);
                 m_payload = new_storage;
                 m_capacity = new_capacity;
             }
@@ -153,7 +150,7 @@ namespace mpi {
         template <typename T>
         void enqueue(T x) {
             if (m_size + sizeof(T) > m_capacity) {
-                resize((m_capacity+1)*1.2);
+                reserve((m_capacity+1)*1.2);
             }
             unsigned char* payload_T = m_payload + m_size;
             *reinterpret_cast<T*>(payload_T) = x;
@@ -161,7 +158,7 @@ namespace mpi {
         }
 
         /** Function to access an element of type T at position pos in the message.
-         * Size will be updated. In debug mode a check is performed to ensure the
+         * In debug mode a check is performed to ensure the
          * in-bound access, and to check that the address is aligned properly
          * for type T.
          *
@@ -261,11 +258,16 @@ namespace mpi {
          * user uses memcpy from .data() pointer and then set the size for sending.
          *
          * @param s New size
-	 */
-        void set_size(size_t s) {
-            return m_s_message->set_size(s);
+        */
+        void resize(size_t s) {
+            m_s_message->resize(s);
         }
 
+
+        /** Function to set a message to a new capacity. Size is unchanged */
+        void reserve(size_t new_capacity) {
+            m_s_message->reserve(new_capacity);
+        }
 
         /** Reset the size of the message to 0 */
         void empty() {
@@ -277,11 +279,6 @@ namespace mpi {
         /** Simple iterator facility to read the bytes out of the message */
         unsigned char* begin() { return m_s_message->begin(); }
         unsigned char* end() const { return m_s_message->end(); }
-
-        /** Function to resize a message to a new capacity. Size is unchanged */
-        void resize(size_t new_capacity) {
-            m_s_message->resize(new_capacity);
-        }
 
         /** Function to add an element of type T at the end of the message.
          * Size will be updated. In debug mode a check is performed to ensure the
@@ -312,4 +309,5 @@ namespace mpi {
             return m_s_message-> template at<T>(pos);
         }
     };
-} //namespace mpi
+} // namespace mpi
+} // namespace gridtools
