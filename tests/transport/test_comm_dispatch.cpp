@@ -1,4 +1,5 @@
 #include <transport_layer/mpi/communicator.hpp>
+#include <allocator/persistent_allocator.hpp>
 #include <iostream>
 #include <iomanip>
 
@@ -8,12 +9,22 @@ const int SIZE = 4000000;
 int mpi_rank;
 gridtools::mpi::communicator comm;
 
+/** use an allocator that keeps the allocations for future use */
+typedef ghex::allocator::persistent_allocator<unsigned char, std::allocator<unsigned char>> t_allocator;
+
+/** this needs to be thread-private, but can't be declared so?
+ *  The below seems to be a hack.
+ */
+extern t_allocator allocator;
+#pragma omp threadprivate(allocator)
+t_allocator allocator;
+
 bool comm_ready = false;
 
 struct send_callback {
-    gridtools::mpi::shared_message<> msg;
+    gridtools::mpi::shared_message<t_allocator> msg;
 
-    send_callback(gridtools::mpi::shared_message<> m) : msg{m} {}
+    send_callback(gridtools::mpi::shared_message<t_allocator> m) : msg{m} {}
 
     void operator()(int, int) {
 
@@ -28,7 +39,7 @@ struct send_callback {
 
 void submit_sends() {
 
-    gridtools::mpi::shared_message<> smsg{SIZE};
+    gridtools::mpi::shared_message<t_allocator> smsg{SIZE, allocator};
     unsigned char *buffer;
 
     /* fill the buffer directly (memcpy) */
@@ -59,9 +70,9 @@ void submit_sends() {
 }
 
 struct recv_callback {
-    gridtools::mpi::shared_message<> msg;
+    gridtools::mpi::shared_message<t_allocator> msg;
     
-    recv_callback(gridtools::mpi::shared_message<> m) : msg{m} {}
+    recv_callback(gridtools::mpi::shared_message<t_allocator> m) : msg{m} {}
 
     void operator()(int, int) {
 	comm_ready = true;
@@ -70,7 +81,7 @@ struct recv_callback {
 };
 
 void submit_recvs() {
-    gridtools::mpi::shared_message<> rmsg{SIZE, SIZE};
+    gridtools::mpi::shared_message<t_allocator> rmsg{SIZE, SIZE, allocator};
     comm.recv(rmsg, 0, 42, recv_callback{rmsg});
     // std::cerr << "initial rmsg.use_count " << rmsg.use_count() << "\n" ;
 }

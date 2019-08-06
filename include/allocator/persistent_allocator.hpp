@@ -36,6 +36,8 @@ namespace ghex {
         template <typename T, typename BaseAllocator>
         struct persistent_allocator {
 
+	    typedef T value_type;
+
 	    BaseAllocator ba;
 	    std::multiset<persistent_pointer<T>, compare_size<T>> free_alloc;
 	    std::set<persistent_pointer<T>, compare_ptr<T>> used_alloc;
