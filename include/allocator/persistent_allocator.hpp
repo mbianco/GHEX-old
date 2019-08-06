@@ -65,7 +65,7 @@ namespace ghex {
 		T* ptr = ba.allocate(n);
 		used_alloc.emplace(n, ptr);
 #if (GHEX_DEBUG_LEVEL == 2)
-		std::cerr << "allocate new " << (std::size_t)ptr << "\n";
+		std::cout << "allocate new " << (std::size_t)ptr << "\n";
 #endif
 		return ptr;
             }
