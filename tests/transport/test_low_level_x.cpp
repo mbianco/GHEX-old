@@ -97,9 +97,12 @@ auto test2() {
 auto test1_mesg() {
     gridtools::mpi::communicator sr;
 
-    gridtools::mpi::message<> smsg{10};
+    gridtools::mpi::message<> smsg{40, 40};
+
+    int* data = smsg.data<int>();
+
     for (int i = 0; i < 10; ++i) {
-        smsg.enqueue(i);
+        data[i] = i;
     }
 
     gridtools::mpi::message<> rmsg{40, 40};
@@ -110,7 +113,7 @@ auto test1_mesg() {
         sr.blocking_send(smsg, 1, 1);
         rfut = sr.recv(rmsg, 1, 2);
     } else if (rank == 1) {
-        sr.send(smsg, 0, 2);
+        sr.blocking_send(smsg, 0, 2);
         rfut = sr.recv(rmsg, 0, 1);
     }
 
@@ -138,9 +141,12 @@ auto test1_mesg() {
 auto test2_mesg() {
     gridtools::mpi::communicator sr;
 
-    gridtools::mpi::message<> smsg{10};
+    gridtools::mpi::message<> smsg{40, 40};
+
+    int* data = smsg.data<int>();
+
     for (int i = 0; i < 10; ++i) {
-        smsg.enqueue(i);
+        data[i] = i;
     }
 
     gridtools::mpi::message<> rmsg{40, 40};
@@ -186,9 +192,11 @@ auto test2_mesg() {
 auto test1_shared_mesg() {
     gridtools::mpi::communicator sr;
 
-    gridtools::mpi::shared_message<> smsg{10};
+    gridtools::mpi::shared_message<> smsg{40, 40};
+    int* data = smsg.data<int>();
+
     for (int i = 0; i < 10; ++i) {
-        smsg.enqueue(i);
+        data[i] = i;
     }
 
     gridtools::mpi::shared_message<> rmsg{40, 40};
@@ -229,9 +237,11 @@ auto test1_shared_mesg() {
 auto test2_shared_mesg() {
     gridtools::mpi::communicator sr;
 
-    gridtools::mpi::shared_message<> smsg{10};
+    gridtools::mpi::shared_message<> smsg{40, 40};
+    int* data = smsg.data<int>();
+
     for (int i = 0; i < 10; ++i) {
-        smsg.enqueue(i);
+        data[i] = i;
     }
 
     gridtools::mpi::shared_message<> rmsg{40, 40};
@@ -281,8 +291,9 @@ bool check_msg(M const& msg) {
     if (rank > 1)
         return ok;
 
+    int* data = msg.template data<int>();
     for (size_t i = 0; i < msg.size()/sizeof(int); ++i) {
-        if ( msg. template at<int>(i*sizeof(int)) != static_cast<int>(i) )
+        if ( data[i] != static_cast<int>(i) )
             ok = false;
     }
     return ok;
@@ -303,13 +314,13 @@ bool check_msg(std::vector<unsigned char> const& msg) {
 }
 
 template <typename Test>
-void run_test(Test&& test) {
+bool run_test(Test&& test) {
     bool ok;
     auto msg = test();
 
 
     ok = check_msg(msg);
-    EXPECT_TRUE(ok);
+    return ok;
 }
 
 
@@ -317,40 +328,46 @@ TEST(low_level, basic_x) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (rank < 2) run_test(test1);
+    if (rank < 2)
+        EXPECT_TRUE(run_test(test1));
 }
 
 TEST(low_level, basic_x_call_back) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (rank < 2) run_test(test2);
+    if (rank < 2)
+        EXPECT_TRUE(run_test(test2));
 }
 
 TEST(low_level, basic_x_msg) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (rank < 2) run_test(test1_mesg);
+    if (rank < 2)
+        EXPECT_TRUE(run_test(test1_mesg));
 }
 
 TEST(low_level, basic_x_msg_call_back) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (rank < 2) run_test(test2_mesg);
+    if (rank < 2)
+        EXPECT_TRUE(run_test(test2_mesg));
 }
 
 TEST(low_level, basic_x_shared_msg) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (rank < 2) run_test(test1_shared_mesg);
+    if (rank < 2)
+        EXPECT_TRUE(run_test(test1_shared_mesg));
 }
 
 TEST(low_level, basic_x_shared_msg_call_back) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (rank < 2) run_test(test2_shared_mesg);
+    if (rank < 2)
+        EXPECT_TRUE(run_test(test2_shared_mesg));
 }
