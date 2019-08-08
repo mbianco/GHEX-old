@@ -126,7 +126,7 @@ namespace mpi {
 
         /** Reset the size of the message to 0 */
         void empty() {
-            m_size == 0;
+            m_size = 0;
         }
 
         size_t capacity() const { return m_capacity; }
