@@ -15,7 +15,7 @@ namespace mpi {
     #ifdef NDEBUG
     #define CHECK_MPI_ERROR(x) x;
     #else
-    #define CHECK_MPI_ERROR(x) if (x != MPI_SUCCESS) throw std::runtime_error("MPI Call failed " + std::string(#x) + " in " + std::string(__FILE__) + ":"  +  std::to_string(__LINE__));
+    #define CHECK_MPI_ERROR(x) if (x != MPI_SUCCESS) throw std::runtime_error("GHEX Error: MPI Call failed " + std::string(#x) + " in " + std::string(__FILE__) + ":"  +  std::to_string(__LINE__));
     #endif
 
     /** Ironic name (ha! ha!) for the future returned by the send and receive
@@ -69,18 +69,19 @@ namespace mpi {
         using tag_type = int;
         using rank_type = int;
 
-        std::unordered_map<MPI_Request, std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type>> m_call_backs;
+        std::unordered_map<MPI_Request, std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type>> m_callbacks;
 
         MPI_Comm m_mpi_comm;
     public:
 
         using send_future = mpi_future;
         using recv_future = mpi_future;
+        using request_type = typename decltype(m_callbacks)::key_type;
 
         communicator(communicator_traits const& ct = communicator_traits{}) : m_mpi_comm{ct.communicator()} {}
 
         ~communicator() {
-            if (m_call_backs.size() != 0) {
+            if (m_callbacks.size() != 0) {
                 std::terminate();
             }
         }
@@ -117,10 +118,11 @@ namespace mpi {
          * @param cb  Call-back function with signature void(int, int)
          */
         template <typename MsgType, typename CallBack>
-        void send(MsgType const& msg, rank_type dst, tag_type tag, CallBack&& cb) {
+        request_type send(MsgType const& msg, rank_type dst, tag_type tag, CallBack&& cb) {
             MPI_Request req;
             CHECK_MPI_ERROR(MPI_Isend(msg.data(), msg.size(), MPI_BYTE, dst, tag, m_mpi_comm, &req));
-            m_call_backs.emplace(std::make_pair(req, std::make_tuple(std::forward<CallBack>(cb), dst, tag) ));
+            m_callbacks.emplace(std::make_pair(req, std::make_tuple(std::forward<CallBack>(cb), dst, tag) ));
+            return req;
         }
 
         /** Send a message to a destination with the given tag. This function blocks until the message has been sent and
@@ -169,10 +171,11 @@ namespace mpi {
          * @param cb  Call-back function with signature void(int, int)
          */
         template <typename MsgType, typename CallBack>
-        void recv(MsgType& msg, rank_type src, tag_type tag, CallBack&& cb) {
+        request_type recv(MsgType& msg, rank_type src, tag_type tag, CallBack&& cb) {
             MPI_Request request;
             CHECK_MPI_ERROR(MPI_Irecv(msg.data(), msg.size(), MPI_BYTE, src, tag, m_mpi_comm, &request));
-	    m_call_backs.emplace(std::make_pair(request, std::make_tuple(std::forward<CallBack>(cb), src, tag) ));
+            m_callbacks.emplace(std::make_pair(request, std::make_tuple(std::forward<CallBack>(cb), src, tag) ));
+            return request;
         }
 
         /** Send a message (shared_message type) to a set of destinations listed in
@@ -225,8 +228,8 @@ namespace mpi {
          */
         bool progress() {
 
-            auto i = m_call_backs.begin();
-            while (i != m_call_backs.end()) {
+            auto i = m_callbacks.begin();
+            while (i != m_callbacks.end()) {
 #if (GHEX_DEBUG_LEVEL == 2)
                 {
                     int flag;
@@ -250,22 +253,22 @@ namespace mpi {
                     auto f = std::move(std::get<0>(i->second));
                     auto x = std::get<1>(i->second);
                     auto y = std::get<2>(i->second);
-                    i = m_call_backs.erase(i); i = m_call_backs.end();
+                    i = m_callbacks.erase(i); i = m_callbacks.end();
                     f(x, y);
                     break;
                 } else {
                     ++i;
                 }
             }
-            return !(m_call_backs.size() == 0);
+            return !(m_callbacks.size() == 0);
         }
 
-        bool cancel_call_backs() {
+        bool cancel_callbacks() {
 
             int result = true;
 
-            auto i = m_call_backs.begin();
-            while (i != m_call_backs.end()) {
+            auto i = m_callbacks.begin();
+            while (i != m_callbacks.end()) {
                 MPI_Request r = i->first;
                 CHECK_MPI_ERROR(MPI_Cancel(&r));
                 MPI_Status st;
@@ -273,10 +276,26 @@ namespace mpi {
                 CHECK_MPI_ERROR(MPI_Wait(&r, &st));
                 CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
                 result &= flag;
-                i = m_call_backs.erase(i);
+                i = m_callbacks.erase(i);
             }
 
             return result;
+        }
+
+        bool cancel_callback(request_type req) {
+
+            if (m_callbacks.count(req) > 0u) {
+                MPI_Request r = req;
+                CHECK_MPI_ERROR(MPI_Cancel(&r));
+                MPI_Status st;
+                int flag = false;
+                CHECK_MPI_ERROR(MPI_Wait(&r, &st));
+                CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
+                m_callbacks.erase(req);
+                return flag;
+            } else {
+                return true;
+            }
         }
     };
 

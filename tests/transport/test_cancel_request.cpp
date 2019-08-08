@@ -12,7 +12,7 @@ const int SIZE = 1<<12;
 bool test_simple(gridtools::mpi::communicator &comm, int rank) {
 
     if (rank == 0) {
-        gridtools::mpi::shared_message<> smsg{SIZE};
+        gridtools::mpi::shared_message<> smsg{SIZE, SIZE};
 
         int* data = smsg.data<int>();
 
@@ -23,7 +23,7 @@ bool test_simple(gridtools::mpi::communicator &comm, int rank) {
         std::array<int, 3> dsts = {1,2,3};
 
         comm.send_multi(smsg, dsts, 42+42); // ~wrong tag to then cancel the calls
-        bool ok = comm.cancel_call_backs();
+        bool ok = comm.cancel_callbacks();
         return ok;
     } else {
         gridtools::mpi::message<> rmsg{SIZE, SIZE};
@@ -34,6 +34,44 @@ bool test_simple(gridtools::mpi::communicator &comm, int rank) {
     }
 
 }
+
+bool test_single(gridtools::mpi::communicator &comm, int rank) {
+
+    if (rank == 0) {
+        gridtools::mpi::shared_message<> smsg{SIZE, SIZE};
+
+        std::array<int, 3> dsts = {1,2,3};
+        std::array<gridtools::mpi::communicator::request_type, 3> reqs;
+        std::array<gridtools::mpi::communicator::send_future, 3> fut;
+
+        int i = 0;
+        for (int dst : dsts) {
+            reqs[i++] = comm.send(smsg, dst, 45, [smsg](int,int) {} );
+        }
+
+        bool ok = true;
+
+        for (auto req : reqs) {
+            ok &= comm.cancel_callback(req);
+        }
+
+
+        while (comm.progress()) {}
+
+        return ok;
+
+    } else {
+        gridtools::mpi::message<> rmsg{SIZE, SIZE};
+        auto req = comm.recv(rmsg, 0, 43, [](int, int) {}); // unmatching tag
+        bool ok = comm.cancel_callback(req);
+
+        while (comm.progress()) {}
+
+        return ok;
+    }
+
+}
+
 
 class call_back {
     int & m_value;
@@ -80,7 +118,7 @@ bool test_send_10(gridtools::mpi::communicator &comm, int rank) {
             comm.progress();
         }
 
-        bool ok = comm.cancel_call_backs();
+        bool ok = comm.cancel_callbacks();
 
         return ok;
 
@@ -112,4 +150,13 @@ TEST(transport, cancel_requests_simple) {
 
     EXPECT_TRUE(test_simple(comm, rank));
 
+}
+
+TEST(transport, cancel_single_request) {
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    gridtools::mpi::communicator comm;
+
+    EXPECT_TRUE(test_single(comm, rank));
 }
