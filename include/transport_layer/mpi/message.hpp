@@ -53,7 +53,7 @@ struct message
          * @param capacity Capacity
          * @param alloc Allocator instance
          */
-    message(size_t capacity = 0, Allocator alloc = Allocator{})
+    explicit message(size_t capacity = 0, Allocator alloc = Allocator{})
         : m_alloc{alloc}, m_capacity{capacity}, m_payload(nullptr), m_size{0}
     {
         if (m_capacity > 0)
@@ -67,11 +67,12 @@ struct message
          * @param size
          * @param alloc Allocator instance
          */
-    message(size_t capacity, size_t size, Allocator alloc = Allocator{})
+    explicit message(size_t capacity, size_t size, Allocator alloc = Allocator{})
         : message(capacity, alloc)
     {
         m_size = size;
-        assert(m_size <= m_capacity);
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
     }
 
     /** Copy constructor only does shallo copy, and it should only be used
@@ -89,6 +90,9 @@ struct message
         if (m_size > 0) {
             std::memcpy(m_payload, other.m_payload, m_size);
         }
+
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
     }
 
     message(message &&other)
@@ -123,6 +127,9 @@ struct message
          */
     unsigned char *data() const
     {
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
+
         return m_payload;
     }
 
@@ -135,6 +142,9 @@ struct message
     template <typename T>
     T *data() const
     {
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
+
         assert(reinterpret_cast<std::uintptr_t>(m_payload) % alignof(T) == 0);
         return reinterpret_cast<T *>(m_payload);
     }
@@ -147,6 +157,9 @@ struct message
          */
     size_t size() const
     {
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
+
         return m_size;
     }
 
@@ -158,14 +171,26 @@ struct message
         */
     void resize(size_t s)
     {
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
+
         assert(s <= m_capacity);
         m_size = s;
+
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
     }
 
     /** Reset the size of the message to 0 */
     void empty()
     {
-        m_size == 0;
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
+
+        m_size = 0;
+
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
     }
 
     size_t capacity() const { return m_capacity; }
@@ -177,6 +202,9 @@ struct message
     /** Function to set a message to a new capacity. Size is unchanged */
     void reserve(size_t new_capacity)
     {
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
+
         if (new_capacity <= m_capacity)
             return;
 
@@ -218,7 +246,7 @@ struct shared_message
          * @param capacity Capacity
          * @param alloc Allocator instance
          */
-    shared_message(size_t capacity, Allocator allc = Allocator{})
+    explicit shared_message(size_t capacity, Allocator allc = Allocator{})
         : m_s_message{std::make_shared<message<Allocator>>(capacity, allc)}
     {
     }
@@ -230,7 +258,7 @@ struct shared_message
          * @param size
          * @param alloc Allocator instance
          */
-    shared_message(size_t capacity, size_t size, Allocator allc = Allocator{})
+    explicit shared_message(size_t capacity, size_t size, Allocator allc = Allocator{})
         : m_s_message{std::make_shared<message<Allocator>>(capacity, size, allc)}
     {
     }
