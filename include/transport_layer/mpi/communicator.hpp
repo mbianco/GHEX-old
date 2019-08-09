@@ -101,7 +101,10 @@ public:
     using recv_future = mpi_future;
     using request_type = typename decltype(m_callbacks)::key_type;
 
-    communicator(communicator_traits const &ct = communicator_traits{}) : m_mpi_comm{ct.communicator()} {}
+    explicit communicator(communicator_traits const &ct = communicator_traits{}) : m_mpi_comm{ct.communicator()} {}
+
+    communicator(communicator const&) = default;
+    communicator(communicator &&) = default;
 
     ~communicator()
     {

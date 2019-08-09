@@ -75,31 +75,23 @@ struct message
         assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
     }
 
-    /** Copy constructor only does shallo copy, and it should only be used
-     * to put messages in a container, like std::vector
-     */
-    message(message const& other)
-        : m_alloc{other.m_alloc}, m_capacity{other.m_capacity}, m_payload{nullptr}, m_size(other.m_size)
-    {
-        assert(m_size <= m_capacity); // sanity check
-        assert((m_capacity == 0) == (other.m_payload == nullptr)); // sanity check
-
-        if (m_capacity > 0) {
-            m_payload = std::allocator_traits<Allocator>::allocate(m_alloc, m_capacity);
-        }
-        if (m_size > 0) {
-            std::memcpy(m_payload, other.m_payload, m_size);
-        }
-
-        assert(m_size <= m_capacity); // sanity check
-        assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
-    }
 
     message(message &&other)
         : m_alloc{std::move(other.m_alloc)}, m_capacity{other.m_capacity}, m_payload{other.m_payload}, m_size(other.m_size)
     {
         assert(m_size <= m_capacity); // sanity check
         assert((m_capacity == 0) == (m_payload == nullptr)); // sanity check
+
+        other.m_capacity = 0;
+        other.m_payload = nullptr;
+        other.m_size = 0;
+    }
+
+    message& operator=(message && other) {
+        m_alloc = std::move(other.m_alloc);
+        m_capacity = other.m_capacity;
+        m_payload = other.m_payload;
+        m_size = other.m_size;
 
         other.m_capacity = 0;
         other.m_payload = nullptr;
