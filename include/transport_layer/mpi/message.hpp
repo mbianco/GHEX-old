@@ -80,8 +80,13 @@ struct message
     message(message const& other)
         : m_alloc{other.m_alloc}, m_capacity{other.m_capacity}, m_payload{nullptr}, m_size(other.m_size)
     {
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) != (m_payload == nullptr)); // sanity check
+
         if (m_capacity > 0) {
             m_payload = std::allocator_traits<Allocator>::allocate(m_alloc, m_capacity);
+        }
+        if (m_size > 0) {
             std::memcpy(m_payload, other.m_payload, m_size);
         }
     }
@@ -89,6 +94,9 @@ struct message
     message(message &&other)
         : m_alloc{std::move(other.m_alloc)}, m_capacity{other.m_capacity}, m_payload{other.m_payload}, m_size(other.m_size)
     {
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) != (m_payload == nullptr)); // sanity check
+
         other.m_capacity = 0;
         other.m_payload = nullptr;
         other.m_size = 0;
@@ -96,6 +104,9 @@ struct message
 
     ~message()
     {
+        assert(m_size <= m_capacity); // sanity check
+        assert((m_capacity == 0) != (m_payload == nullptr)); // sanity check
+
         if (m_payload)
             std::allocator_traits<Allocator>::deallocate(m_alloc, m_payload, m_capacity);
         m_payload = nullptr;
