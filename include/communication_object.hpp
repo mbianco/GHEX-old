@@ -289,6 +289,7 @@ namespace gridtools {
                 auto tag = domain_id.tag;
                 const auto& iteration_spaces = halo.second;
 
+                assert(halo_index < m_receive_buffers.size());
                 m_receive_buffers[halo_index].reserve(buffer_size(iteration_spaces, data_descriptors));
                 m_receive_buffers[halo_index].resize(buffer_size(iteration_spaces, data_descriptors));
 
@@ -337,4 +338,3 @@ namespace gridtools {
 }
 
 #endif /* INCLUDED_COMMUNICATION_OBJECT_HPP */
-
