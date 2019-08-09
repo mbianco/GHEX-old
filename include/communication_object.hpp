@@ -17,6 +17,7 @@
 #include <iostream>
 #include "./gridtools_arch.hpp"
 #include "./utils.hpp"
+#include "./transport_layer/mpi/communicator.hpp"
 
 namespace gridtools {
 
@@ -57,7 +58,7 @@ namespace gridtools {
     /** @brief cpu template specialization of the communication object
      * @tparam Pattern pattern type to be used for the communication*/
     template <typename Pattern>
-    class communication_object<Pattern, gridtools::cpu> {
+    class communication_object<Pattern, cpu> {
 
         /** @brief buffer element type*/
         using byte_t = unsigned char;
@@ -68,17 +69,17 @@ namespace gridtools {
         /** @brief map type for send and receive halos, deduced form Pattern*/
         using map_t = typename Pattern::map_type;
         /** @brief communication protocol, deduced form Pattern*/
-        using communicator_t = typename Pattern::communicator_type;
-        /** @brief future type, deduced form communicator, of type void*/
-        using future_t = typename communicator_t::template future<void>;
+        using communicator_t = ghex::mpi::communicator;
+        // /** @brief future type, deduced form communicator, of type void*/
+        // using future_t = typename communicator_t::future;
         /** @brief send buffer type, for now set to vector of bytes*/
-        using s_buffer_t = std::vector<byte_t, default_init_allocator<byte_t>>;
+        using s_buffer_t = ghex::mpi::message< default_init_allocator<byte_t> >;
         /** @brief receive buffer type, for now set to vector of bytes*/
-        using r_buffer_t = std::vector<byte_t, default_init_allocator<byte_t>>;
+        using r_buffer_t = ghex::mpi::message< default_init_allocator<byte_t> >;
         /** @brief send request type, simply a future*/
-        using s_request_t = future_t;
+        using s_request_t = ghex::mpi::communicator::send_future;
         /** @brief receive request type, 1:1 mapping between receive halo index, domain and receive request*/
-        using r_request_t = std::tuple<std::size_t, extended_domain_id_t, future_t>;
+        using r_request_t = std::tuple<std::size_t, extended_domain_id_t, ghex::mpi::communicator::recv_future>;
 
         /** @brief domain id with size information, used for buffer ordering */
         struct ordered_domain_id_t {
@@ -95,7 +96,7 @@ namespace gridtools {
         /** @brief map type for send and receive halos with ordered domain id */
         using ordered_map_t = std::map<ordered_domain_id_t, typename map_t::mapped_type>;
         /** @brief receive request type with ordered domain id */
-        using ordered_r_request_t = std::tuple<std::size_t, ordered_domain_id_t, future_t>;
+        using ordered_r_request_t = std::tuple<std::size_t, ordered_domain_id_t, ghex::mpi::communicator::recv_future>;
 
         const Pattern& m_pattern;
         const map_t& m_send_halos;
@@ -104,7 +105,7 @@ namespace gridtools {
         std::size_t m_n_receive_halos;
         std::vector<s_buffer_t> m_send_buffers;
         std::vector<r_buffer_t> m_receive_buffers;
-        const communicator_t& m_communicator;
+        communicator_t m_communicator;
         ordered_map_t m_ordered_send_halos;
         ordered_map_t m_ordered_receive_halos;
 
@@ -153,14 +154,16 @@ namespace gridtools {
 
             const auto& iteration_spaces = m_send_halos.at(domain);
 
+            m_send_buffers[halo_index].reserve(buffer_size(iteration_spaces, data_descriptors));
             m_send_buffers[halo_index].resize(buffer_size(iteration_spaces, data_descriptors));
             std::size_t buffer_index{0};
 
             /* The two loops are performed with this order
              * in order to have as many data of the same type as possible in contiguos memory */
             gridtools::detail::for_each(data_descriptors, [this, &iteration_spaces, &halo_index, &buffer_index](const auto& dd) {
+                unsigned char* data = m_send_buffers[halo_index].data();
                 for (const auto& is : iteration_spaces) {
-                    dd.get(is, &m_send_buffers[halo_index][buffer_index]);
+                    dd.get(is, &data[buffer_index]);
                     buffer_index += is.size() * dd.data_type_size();
                 }
             });
@@ -191,8 +194,9 @@ namespace gridtools {
                 /* The two loops are performed with this order
                  * in order to have as many data of the same type as possible in contiguos memory */
                 gridtools::detail::for_each(m_data_descriptors, [this, &halo_index, &iteration_spaces, &buffer_index](auto& dd) {
+                    auto data = m_receive_buffers[halo_index].data();
                     for (const auto& is : iteration_spaces) {
-                        dd.set(is, &m_receive_buffers[halo_index][buffer_index]);
+                        dd.set(is, &data[buffer_index]);
                         buffer_index += is.size() * dd.data_type_size();
                     }
                 });
@@ -237,7 +241,7 @@ namespace gridtools {
             m_n_receive_halos(m_receive_halos.size()),
             m_send_buffers{m_n_send_halos},
             m_receive_buffers{m_n_receive_halos},
-            m_communicator{m_pattern.communicator()} {
+            m_communicator{/* TODO: Traits needed */} {
 
             for (const auto& halo : m_send_halos) {
                 const auto& domain_id = halo.first;
@@ -285,13 +289,14 @@ namespace gridtools {
                 auto tag = domain_id.tag;
                 const auto& iteration_spaces = halo.second;
 
+                m_receive_buffers[halo_index].reserve(buffer_size(iteration_spaces, data_descriptors));
                 m_receive_buffers[halo_index].resize(buffer_size(iteration_spaces, data_descriptors));
 
-                ordered_receive_requests.push_back(std::make_tuple(halo_index, ordered_domain_id, m_communicator.irecv(
-                                                              source,
-                                                              tag,
-                                                              &m_receive_buffers[halo_index][0],
-                                                              static_cast<int>(m_receive_buffers[halo_index].size()))));
+                ordered_receive_requests.push_back(std::make_tuple(halo_index,
+                                                                   ordered_domain_id,
+                                                                   m_communicator.recv(m_receive_buffers[halo_index],
+                                                                                       source,
+                                                                                       tag)));
 
                 ++halo_index;
 
@@ -309,10 +314,9 @@ namespace gridtools {
 
                 pack(halo_index, domain_id, data_descriptors);
 
-                send_requests.push_back(m_communicator.isend(dest,
-                                                             tag,
-                                                             &m_send_buffers[halo_index][0],
-                                                             static_cast<int>(m_send_buffers[halo_index].size())));
+                send_requests.push_back(m_communicator.send(m_send_buffers[halo_index],
+                                                            dest,
+                                                            tag));
 
                 ++halo_index;
 
