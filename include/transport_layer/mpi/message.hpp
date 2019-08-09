@@ -12,6 +12,7 @@
 #define GHEX_MPI_MESSAGE_HPP
 
 #include <cassert>
+#include <cstring>
 #include <memory>
 
 namespace gridtools
@@ -77,8 +78,13 @@ struct message
      * to put messages in a container, like std::vector
      */
     message(message const& other)
-        : m_alloc{other.m_alloc}, m_capacity{other.m_capacity}, m_payload{other.m_payload}, m_size(other.m_size)
-    {}
+        : m_alloc{other.m_alloc}, m_capacity{other.m_capacity}, m_payload{nullptr}, m_size(other.m_size)
+    {
+        if (m_capacity > 0) {
+            m_payload = std::allocator_traits<Allocator>::allocate(m_alloc, m_capacity);
+            std::memcpy(m_payload, other.m_payload, m_size);
+        }
+    }
 
     message(message &&other)
         : m_alloc{std::move(other.m_alloc)}, m_capacity{other.m_capacity}, m_payload{other.m_payload}, m_size(other.m_size)
