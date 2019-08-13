@@ -87,28 +87,63 @@ struct mpi_future
 
 class cb_request_t
 {
-    MPI_Request m_req;
+    enum class req_status {unset=0, waiting, ready, completed};
+    using ptr_type = std::pair<MPI_Request, req_status>;
+    std::shared_ptr<ptr_type> m_req;
+
 
 public:
     cb_request_t(MPI_Request r)
-        : m_req{r}
+        : m_req{std::make_shared<ptr_type>(std::make_pair(r, req_status::waiting))}
     {
     }
 
-    cb_request_t() : m_req{0} {}
+    cb_request_t() = default;
 
     cb_request_t(cb_request_t const &) = default;
     cb_request_t(cb_request_t &&) = default;
 
     cb_request_t &operator=(cb_request_t const &oth)
     {
-        m_req = oth.m_req;
+        m_req->first = oth.m_req->first;
+        m_req->second = oth.m_req->second;
         return *this;
+    }
+
+    bool operator==(cb_request_t const & oth) const {
+        return m_req->first == oth.m_req->first && m_req->second == oth.m_req->second;
+    }
+
+    bool is_unset() const {
+        return m_req->second == req_status::unset;
+    }
+
+    bool is_waiting() const {
+        return m_req->second == req_status::waiting;
+    }
+
+    bool is_completed() const {
+        return m_req->second == req_status::completed;
+    }
+
+    bool is_ready() const {
+        return m_req->second == req_status::ready;
     }
 
 protected:
     friend class ::gridtools::ghex::mpi::communicator;
-    MPI_Request operator()() const { return m_req; }
+    friend class hash_req;
+    MPI_Request operator()() const { return m_req->first; }
+    void set_status(req_status st) const {
+        m_req->second = st;
+    }
+};
+
+class hash_req {
+public:
+    size_t operator()(cb_request_t const& r) const noexcept {
+        return std::hash<MPI_Request>()(r.m_req->first);
+    }
 };
 
 } // namespace _impl
@@ -124,7 +159,7 @@ private:
     using tag_type = int;
     using rank_type = int;
 
-    std::unordered_map<MPI_Request, std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type>> m_callbacks;
+    std::unordered_map<_impl::cb_request_t, std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type>, _impl::hash_req> m_callbacks;
 
     MPI_Comm m_mpi_comm;
 
@@ -181,8 +216,9 @@ public:
     {
         MPI_Request req;
         CHECK_MPI_ERROR(MPI_Isend(msg.data(), msg.size(), MPI_BYTE, dst, tag, m_mpi_comm, &req));
-        m_callbacks.emplace(std::make_pair(req, std::make_tuple(std::forward<CallBack>(cb), dst, tag)));
-        return req;
+        _impl::cb_request_t req_p{req};
+        m_callbacks.emplace(std::make_pair(req_p, std::make_tuple(std::forward<CallBack>(cb), dst, tag)));
+        return req_p;
     }
 
     /** Send a message to a destination with the given tag. This function blocks until the message has been sent and
@@ -238,8 +274,8 @@ public:
     {
         MPI_Request request;
         CHECK_MPI_ERROR(MPI_Irecv(msg.data(), msg.size(), MPI_BYTE, src, tag, m_mpi_comm, &request));
-
-        m_callbacks.emplace(std::make_pair(request, std::make_tuple(std::forward<CallBack>(cb), src, tag)));
+        _impl::cb_request_t req_p{request};
+        m_callbacks.emplace(std::make_pair(req_p, std::make_tuple(std::forward<CallBack>(cb), src, tag)));
         return request;
     }
 
@@ -297,7 +333,7 @@ public:
 #endif
             int flag;
             MPI_Status status;
-            MPI_Request r = i->first;
+            MPI_Request r = i->first();
             CHECK_MPI_ERROR(MPI_Test(&r, &flag, &status));
 
             if (flag)
@@ -305,6 +341,7 @@ public:
                 auto f = std::move(std::get<0>(i->second));
                 auto x = std::get<1>(i->second);
                 auto y = std::get<2>(i->second);
+                i->first.set_status(_impl::cb_request_t::req_status::unset);
                 i = m_callbacks.erase(i);
                 i = m_callbacks.end();
                 f(x, y);
@@ -333,13 +370,14 @@ public:
         auto i = m_callbacks.begin();
         while (i != m_callbacks.end())
         {
-            MPI_Request r = i->first;
+            MPI_Request r = i->first();
             CHECK_MPI_ERROR(MPI_Cancel(&r));
             MPI_Status st;
             int flag = false;
             CHECK_MPI_ERROR(MPI_Wait(&r, &st));
             CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
             result &= flag;
+            i->first.set_status(_impl::cb_request_t::req_status::completed);
             i = m_callbacks.erase(i);
         }
 
@@ -362,7 +400,14 @@ public:
     bool cancel_callback(_impl::cb_request_t req)
     {
 
-        if (m_callbacks.count(req()) > 0u)
+        assert(!req.is_unset());
+
+        if (req.is_completed()) {
+            return true;
+        }
+
+
+        if (m_callbacks.count(req) > 0u)
         {
             MPI_Request r = req();
             CHECK_MPI_ERROR(MPI_Cancel(&r));
@@ -372,6 +417,7 @@ public:
             CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
             m_callbacks.erase(req());
             return flag;
+            req.set_status(_impl::cb_request_t::req_status::completed);
         }
         else
         {
@@ -392,19 +438,24 @@ public:
          */
     void wait_on_callback(_impl::cb_request_t req)
     {
+        assert(!req.is_unset());
 
-        if (m_callbacks.count(req()) > 0u)
+        if (!req.is_waiting())
+            return;
+
+        if (m_callbacks.count(req) > 0u)
         {
             MPI_Request r = req();
             MPI_Status st;
             CHECK_MPI_ERROR(MPI_Wait(&r, &st));
 
-            auto it = m_callbacks.find(req());
+            auto it = m_callbacks.find(req);
             auto f = std::move(std::get<0>(it->second));
             auto x = std::get<1>(it->second);
             auto y = std::get<2>(it->second);
             m_callbacks.erase(it);
             f(x, y);
+            req.set_status(_impl::cb_request_t::req_status::completed);
         }
     }
 
@@ -422,15 +473,24 @@ public:
          * @retrun True if the request is ready, of if there was not such request.
          *         False if the request is not ready yet.
          */
-    bool ready_on_callback(_impl::cb_request_t req)
+    bool ready_on_callback(_impl::cb_request_t& req)
     {
 
-        if (m_callbacks.count(req()) > 0u)
+        assert(!req.is_unset());
+
+        if (req.is_completed())
+            return false;
+
+        if (req.is_ready())
+            return true;
+
+        if (m_callbacks.count(req) > 0u)
         {
             MPI_Request r = req();
             MPI_Status st;
             int flag = false;
             CHECK_MPI_ERROR(MPI_Test(&r, &flag, &st));
+            if (flag) req.set_status(_impl::cb_request_t::req_status::ready);
             return flag;
         }
         else
