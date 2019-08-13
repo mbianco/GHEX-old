@@ -87,63 +87,62 @@ struct mpi_future
 
 class cb_request_t
 {
-    std::shared_ptr<MPI_Request> m_req;
     enum class req_status {unset=0, waiting, ready, completed};
+    using ptr_type = std::pair<MPI_Request, req_status>;
+    std::shared_ptr<ptr_type> m_req;
 
-    mutable req_status m_status;
 
 public:
     cb_request_t(MPI_Request r)
-        : m_req{std::make_shared<MPI_Request>(r)}
-        , m_status{req_status::waiting}
+        : m_req{std::make_shared<ptr_type>(std::make_pair(r, req_status::waiting))}
     {
     }
 
-    cb_request_t() = default;//: m_req{nullptr}, m_status{req_status::unset} {}
+    cb_request_t() = default;
 
     cb_request_t(cb_request_t const &) = default;
     cb_request_t(cb_request_t &&) = default;
 
     cb_request_t &operator=(cb_request_t const &oth)
     {
-        m_req = oth.m_req;
-        m_status = oth.m_status;
+        m_req->first = oth.m_req->first;
+        m_req->second = oth.m_req->second;
         return *this;
     }
 
     bool operator==(cb_request_t const & oth) const {
-        return *m_req == *(oth.m_req) && m_status == oth.m_status;
+        return m_req->first == oth.m_req->first && m_req->second == oth.m_req->second;
     }
 
     bool is_unset() const {
-        return m_status == req_status::unset;
+        return m_req->second == req_status::unset;
     }
 
     bool is_waiting() const {
-        return m_status == req_status::waiting;
+        return m_req->second == req_status::waiting;
     }
 
     bool is_completed() const {
-        return m_status == req_status::completed;
+        return m_req->second == req_status::completed;
     }
 
     bool is_ready() const {
-        return m_status == req_status::ready;
+        return m_req->second == req_status::ready;
     }
 
 protected:
     friend class ::gridtools::ghex::mpi::communicator;
     friend class hash_req;
-    MPI_Request operator()() const { return *m_req; }
+    MPI_Request operator()() const { return m_req->first; }
     void set_status(req_status st) const {
-        m_status = st;
+        m_req->second = st;
     }
 };
 
 class hash_req {
 public:
     size_t operator()(cb_request_t const& r) const noexcept {
-        return std::hash<MPI_Request>()((*(r.m_req)));
+        return std::hash<MPI_Request>()(r.m_req->first);
     }
 };
 
