@@ -88,14 +88,18 @@ struct mpi_future
 class cb_request_t
 {
     std::shared_ptr<MPI_Request> m_req;
+    enum class req_status {unset=0, waiting, ready, completed};
+
+    mutable req_status m_status;
 
 public:
     cb_request_t(MPI_Request r)
         : m_req{std::make_shared<MPI_Request>(r)}
+        , m_status{req_status::waiting}
     {
     }
 
-    cb_request_t() : m_req{nullptr} {}
+    cb_request_t() = default;//: m_req{nullptr}, m_status{req_status::unset} {}
 
     cb_request_t(cb_request_t const &) = default;
     cb_request_t(cb_request_t &&) = default;
@@ -103,17 +107,37 @@ public:
     cb_request_t &operator=(cb_request_t const &oth)
     {
         m_req = oth.m_req;
+        m_status = oth.m_status;
         return *this;
     }
 
     bool operator==(cb_request_t const & oth) const {
-        return *m_req == *(oth.m_req);
+        return *m_req == *(oth.m_req) && m_status == oth.m_status;
+    }
+
+    bool is_unset() const {
+        return m_status == req_status::unset;
+    }
+
+    bool is_waiting() const {
+        return m_status == req_status::waiting;
+    }
+
+    bool is_completed() const {
+        return m_status == req_status::completed;
+    }
+
+    bool is_ready() const {
+        return m_status == req_status::ready;
     }
 
 protected:
     friend class ::gridtools::ghex::mpi::communicator;
     friend class hash_req;
     MPI_Request operator()() const { return *m_req; }
+    void set_status(req_status st) const {
+        m_status = st;
+    }
 };
 
 class hash_req {
@@ -318,6 +342,7 @@ public:
                 auto f = std::move(std::get<0>(i->second));
                 auto x = std::get<1>(i->second);
                 auto y = std::get<2>(i->second);
+                i->first.set_status(_impl::cb_request_t::req_status::unset);
                 i = m_callbacks.erase(i);
                 i = m_callbacks.end();
                 f(x, y);
@@ -353,6 +378,7 @@ public:
             CHECK_MPI_ERROR(MPI_Wait(&r, &st));
             CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
             result &= flag;
+            i->first.set_status(_impl::cb_request_t::req_status::completed);
             i = m_callbacks.erase(i);
         }
 
@@ -375,6 +401,13 @@ public:
     bool cancel_callback(_impl::cb_request_t req)
     {
 
+        assert(!req.is_unset());
+
+        if (req.is_completed()) {
+            return true;
+        }
+
+
         if (m_callbacks.count(req) > 0u)
         {
             MPI_Request r = req();
@@ -385,6 +418,7 @@ public:
             CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
             m_callbacks.erase(req());
             return flag;
+            req.set_status(_impl::cb_request_t::req_status::completed);
         }
         else
         {
@@ -405,6 +439,10 @@ public:
          */
     void wait_on_callback(_impl::cb_request_t req)
     {
+        assert(!req.is_unset());
+
+        if (!req.is_waiting())
+            return;
 
         if (m_callbacks.count(req) > 0u)
         {
@@ -418,6 +456,7 @@ public:
             auto y = std::get<2>(it->second);
             m_callbacks.erase(it);
             f(x, y);
+            req.set_status(_impl::cb_request_t::req_status::completed);
         }
     }
 
@@ -435,8 +474,16 @@ public:
          * @retrun True if the request is ready, of if there was not such request.
          *         False if the request is not ready yet.
          */
-    bool ready_on_callback(_impl::cb_request_t req)
+    bool ready_on_callback(_impl::cb_request_t& req)
     {
+
+        assert(!req.is_unset());
+
+        if (req.is_completed())
+            return false;
+
+        if (req.is_ready())
+            return true;
 
         if (m_callbacks.count(req) > 0u)
         {
@@ -444,6 +491,7 @@ public:
             MPI_Status st;
             int flag = false;
             CHECK_MPI_ERROR(MPI_Test(&r, &flag, &st));
+            if (flag) req.set_status(_impl::cb_request_t::req_status::ready);
             return flag;
         }
         else
