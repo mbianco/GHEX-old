@@ -1,12 +1,12 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_SIMPLE_FIELD_WRAPPER_HPP
 #define INCLUDED_SIMPLE_FIELD_WRAPPER_HPP
@@ -16,7 +16,7 @@
 #include <cstring>
 
 namespace gridtools {
-
+namespace ghex {
     namespace detail {
         template<int D, int I>
         struct compute_strides_impl
@@ -83,7 +83,7 @@ namespace gridtools {
         device_id_type  m_device_id;
 
     public: // ctors
-        /** @brief construcor 
+        /** @brief construcor
          * @tparam Array coordinate-like type
          * @param dom_id local domain id
          * @param data pointer to data
@@ -92,7 +92,7 @@ namespace gridtools {
         template<typename Array>
         simple_field_wrapper(domain_id_type dom_id, value_type* data, const Array& offsets, const Array& extents, device_id_type d_id = 0)
         : m_dom_id(dom_id), m_data(data), m_strides(1), m_device_id(d_id)
-        { 
+        {
             std::copy(offsets.begin(), offsets.end(), m_offsets.begin());
             std::copy(extents.begin(), extents.end(), m_extents.begin());
             // compute strides
@@ -132,9 +132,9 @@ namespace gridtools {
                 detail::for_loop_pointer_arithmetic<dimension::value,dimension::value,layout_map>::apply(
                     [this,buffer](auto o_data, auto o_buffer)
                     {
-                        buffer[o_buffer] = m_data[o_data]; 
-                    }, 
-                    is.local().first(), 
+                        buffer[o_buffer] = m_data[o_data];
+                    },
+                    is.local().first(),
                     is.local().last(),
                     m_extents,
                     m_offsets
@@ -152,8 +152,8 @@ namespace gridtools {
                     [this,buffer](auto o_data, auto o_buffer)
                     {
                         m_data[o_data] = buffer[o_buffer];
-                    }, 
-                    is.local().first(), 
+                    },
+                    is.local().first(),
                     is.local().last(),
                     m_extents,
                     m_offsets
@@ -163,7 +163,7 @@ namespace gridtools {
         }
     };
 
-    /** @brief wrap a N-dimensional array (field) of contiguous memory 
+    /** @brief wrap a N-dimensional array (field) of contiguous memory
      * @tparam Device device type the data lives on
      * @tparam Order permutation of the set {0,...,N-1} indicating storage layout (N-1 -> stride=1)
      * @tparam DomainIdType domain id type
@@ -178,8 +178,9 @@ namespace gridtools {
     simple_field_wrapper<T,Device,structured_domain_descriptor<DomainIdType,sizeof...(Order)>, Order...>
     wrap_field(DomainIdType dom_id, T* data, const Array& offsets, const Array& extents, typename Device::id_type device_id = 0)
     {
-        return {dom_id, data, offsets, extents, device_id};     
+        return {dom_id, data, offsets, extents, device_id};
     }
+} // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_SIMPLE_FIELD_WRAPPER_HPP */

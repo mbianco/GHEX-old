@@ -18,15 +18,15 @@
 #include <unordered_map>
 #include <tuple>
 #include <cassert>
-#include "./message.hpp"
+#include "../message.hpp"
+#include "../communicator.hpp"
 #include "./communicator_traits.hpp"
+#include "../../definitions.hpp"
 #include <algorithm>
 
 namespace gridtools
 {
 namespace ghex
-{
-namespace mpi
 {
 
 #ifdef NDEBUG
@@ -37,8 +37,6 @@ namespace mpi
     if (x != MPI_SUCCESS)  \
         throw std::runtime_error("GHEX Error: MPI Call failed " + std::string(#x) + " in " + std::string(__FILE__) + ":" + std::to_string(__LINE__));
 #endif
-
-class communicator;
 
 namespace _impl
 {
@@ -86,34 +84,8 @@ struct mpi_future
     }
 
     private:
-        friend ::gridtools::ghex::mpi::communicator;
+        friend ::gridtools::ghex::communicator<mpi>;
         MPI_Request request() const { return m_req; }
-};
-
-class cb_request_t
-{
-    MPI_Request m_req;
-
-public:
-    cb_request_t(MPI_Request r)
-        : m_req{r}
-    {
-    }
-
-    cb_request_t() : m_req{0} {}
-
-    cb_request_t(cb_request_t const &) = default;
-    cb_request_t(cb_request_t &&) = default;
-
-    cb_request_t &operator=(cb_request_t const &oth)
-    {
-        m_req = oth.m_req;
-        return *this;
-    }
-
-protected:
-    friend class ::gridtools::ghex::mpi::communicator;
-    MPI_Request operator()() const { return m_req; }
 };
 
 } // namespace _impl
@@ -123,7 +95,8 @@ protected:
      * and .size(), with the same behavior of std::vector<unsigned char>.
      * Each message will be sent and received with a tag, bot of type int
      */
-class communicator
+template <>
+class communicator<mpi>
 {
 private:
     using tag_type = int;
@@ -135,7 +108,6 @@ private:
 
 public:
     using future_type = _impl::mpi_future;
-    using request_type = _impl::cb_request_t;
 
     communicator(communicator_traits const &ct = communicator_traits{}) : m_mpi_comm{ct.communicator()} {}
 
@@ -388,8 +360,7 @@ public:
 
 };
 
-} //namespace mpi
-} // namespace ghex
+} //namespace ghex
 } // namespace gridtools
 
 #endif

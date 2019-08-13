@@ -17,8 +17,6 @@ namespace gridtools
 {
 namespace ghex
 {
-namespace mpi
-{
 
 class communicator_traits
 {
@@ -38,7 +36,6 @@ public:
     MPI_Comm communicator() const { return m_comm; }
 };
 
-} // namespace mpi
 } // namespace ghex
 } // namespace gridtools
 

@@ -1,12 +1,12 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_SETUP_HPP
 #define INCLUDED_SETUP_HPP
@@ -16,7 +16,7 @@
 #include <vector>
 
 namespace gridtools {
-
+namespace ghex {
     namespace protocol {
 
         /** @brief special mpi communicator used for setup phase */
@@ -32,8 +32,8 @@ namespace gridtools {
             setup_communicator(const MPI_Comm& comm)
             :   m_comm(comm, boost::mpi::comm_attach) {}
 
-            setup_communicator(const setup_communicator& other) 
-            : setup_communicator(other.m_comm) {} 
+            setup_communicator(const setup_communicator& other)
+            : setup_communicator(other.m_comm) {}
 
             address_type address() const { return m_comm.rank(); }
 
@@ -65,7 +65,7 @@ namespace gridtools {
                 return m_comm.recv(source, tag, reinterpret_cast<char*>(values), sizeof(T)*n);
             }
 
-            template<typename T> 
+            template<typename T>
             void broadcast(T& value, int root)
             {
                 BOOST_MPI_CHECK_RESULT(
@@ -73,7 +73,7 @@ namespace gridtools {
                     (&value, sizeof(T), MPI_BYTE, root, m_comm));
             }
 
-            template<typename T> 
+            template<typename T>
             void broadcast(T * values, int n, int root)
             {
                 BOOST_MPI_CHECK_RESULT(
@@ -98,7 +98,7 @@ namespace gridtools {
                     MPI_Iallgatherv,
                     (&payload[0], payload.size()*sizeof(T), MPI_BYTE,
                     &res[0][0], &recvcounts[0], &displs[0], MPI_BYTE,
-                    m_comm, 
+                    m_comm,
                     &h.m_requests[0]));
                 return {std::move(res), std::move(h)};
             }
@@ -115,14 +115,14 @@ namespace gridtools {
                     m_comm,
                     &h.m_requests[0]));
                 return {std::move(res), std::move(h)};
-            } 
+            }
 
         private:
             boost::mpi::communicator m_comm;
         };
 
     } // namespace protocol
-
+} // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_SETUP_HPP */

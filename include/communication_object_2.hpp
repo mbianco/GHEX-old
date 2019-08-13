@@ -1,12 +1,12 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_COMMUNICATION_OBJECT_2_HPP
 #define INCLUDED_COMMUNICATION_OBJECT_2_HPP
@@ -17,7 +17,7 @@
 #include "./protocol/communicator_base.hpp"
 
 namespace gridtools {
-
+namespace ghex {
     namespace detail {
 
         // forward declaration
@@ -51,10 +51,10 @@ namespace gridtools {
 
     private: // member types
         using co_t              = communication_object<P,GridType,DomainIdType>;
-        using communicator_type = protocol::communicator<P>;
+        using communicator_type = protocol::old_mpi_communicator<P>;
 
     private: // private constructor
-        communication_handle(co_t& co, const communicator_type& comm) 
+        communication_handle(co_t& co, const communicator_type& comm)
         : m_co{&co}, m_comm{comm} {}
 
     public: // copy and move ctors
@@ -69,8 +69,8 @@ namespace gridtools {
         co_t* m_co;
         communicator_type m_comm;
     };
-    
-    /** @brief communication object responsible for exchanging halo data. Allocates storage depending on the 
+
+    /** @brief communication object responsible for exchanging halo data. Allocates storage depending on the
      * device type and device id of involved fields.
      * @tparam P message protocol type
      * @tparam GridType grid tag type
@@ -104,7 +104,7 @@ namespace gridtools {
             domain_id_type second_id;
             bool operator<(const domain_id_pair& other) const noexcept
             {
-                return (first_id < other.first_id ? true : 
+                return (first_id < other.first_id ? true :
                         (first_id > other.first_id ? false : (second_id < other.second_id)));
             }
         };
@@ -136,16 +136,16 @@ namespace gridtools {
             using device_type = Device;
             using id_type     = typename device_type::id_type;
             using vector_type = typename device_type::template vector_type<char>;
-            
-            using send_buffer_type = buffer<vector_type,pack_function_type>; 
-            using recv_buffer_type = buffer<vector_type,unpack_function_type>; 
+
+            using send_buffer_type = buffer<vector_type,pack_function_type>;
+            using recv_buffer_type = buffer<vector_type,unpack_function_type>;
             using send_memory_type = std::map<id_type, std::map<domain_id_pair,send_buffer_type>>;
             using recv_memory_type = std::map<id_type, std::map<domain_id_pair,recv_buffer_type>>;
 
             send_memory_type send_memory;
             recv_memory_type recv_memory;
         };
-        
+
         // tuple type of buffer_memory (one element for each device in device::device_list)
         using memory_type = detail::transform<device::device_list>::with<buffer_memory>;
 
@@ -160,7 +160,7 @@ namespace gridtools {
 
     public: // ctors
         /** @brief construct a communication object from a message tag map
-         * @param max_tag_map a map which holds the maximum global message tag for each distinct pattern_container 
+         * @param max_tag_map a map which holds the maximum global message tag for each distinct pattern_container
          * instance */
         communication_object(const std::map<const typename pattern_type::pattern_container_type*, int>& max_tag_map)
         : m_valid(false), m_max_tag_map(max_tag_map) {}
@@ -203,7 +203,7 @@ namespace gridtools {
             int tag_offsets[sizeof...(Fields)] = { m_max_tag_map[&(buffer_infos.get_pattern_container())]... };
 
             int i = 0;
-            detail::for_each(memory_tuple, buffer_info_tuple, [this,&i,&tag_offsets](auto mem, auto bi) 
+            detail::for_each(memory_tuple, buffer_info_tuple, [this,&i,&tag_offsets](auto mem, auto bi)
             {
                 using device_type = typename std::remove_reference_t<decltype(*mem)>::device_type;
                 using value_type  = typename std::remove_reference_t<decltype(*bi)>::value_type;
@@ -214,7 +214,7 @@ namespace gridtools {
                 this->allocate<device_type,value_type,typename buffer_memory<device_type>::recv_buffer_type>(
                     mem->recv_memory[bi->device_id()],
                     bi->get_pattern().recv_halos(),
-                    [field_ptr](const void* buffer, const index_container_type& c) 
+                    [field_ptr](const void* buffer, const index_container_type& c)
                         { field_ptr->unpack(reinterpret_cast<const value_type*>(buffer),c); },
                     my_dom_id,
                     bi->device_id(),
@@ -223,7 +223,7 @@ namespace gridtools {
                 this->allocate<device_type,value_type,typename buffer_memory<device_type>::send_buffer_type>(
                     mem->send_memory[bi->device_id()],
                     bi->get_pattern().send_halos(),
-                    [field_ptr](void* buffer, const index_container_type& c) 
+                    [field_ptr](void* buffer, const index_container_type& c)
                         { field_ptr->pack(reinterpret_cast<value_type*>(buffer),c); },
                     my_dom_id,
                     bi->device_id(),
@@ -232,7 +232,7 @@ namespace gridtools {
                 ++i;
             });
             post(h.m_comm);
-            return h; 
+            return h;
             //return std::move(h);
         }
 
@@ -247,7 +247,7 @@ namespace gridtools {
                     {
                         if (p1.second.size > 0u)
                         {
-                            //std::cout << "irecv(" << p1.second.address << ", " << p1.second.tag 
+                            //std::cout << "irecv(" << p1.second.address << ", " << p1.second.tag
                             //<< ", " << p1.second.buffer.size() << ")" << std::endl;
                             p1.second.buffer.resize(p1.second.size);
                             m_recv_futures.push_back(comm.irecv(
@@ -255,7 +255,7 @@ namespace gridtools {
                                 p1.second.tag,
                                 p1.second.buffer.data(),
                                 p1.second.buffer.size()));
-                            m_recv_hooks.push_back(std::make_pair(p1.second.buffer.data(),&(p1.second.field_buffers))); 
+                            m_recv_hooks.push_back(std::make_pair(p1.second.buffer.data(),&(p1.second.field_buffers)));
                             m_completed_hooks.push_back(false);
                         }
                     }
@@ -272,7 +272,7 @@ namespace gridtools {
                             p1.second.buffer.resize(p1.second.size);
                             for (const auto& fb : p1.second.field_buffers)
                                 fb.call_back( p1.second.buffer.data() + fb.offset, *fb.index_container);
-                            //std::cout << "isend(" << p1.second.address << ", " << p1.second.tag 
+                            //std::cout << "isend(" << p1.second.address << ", " << p1.second.tag
                             //<< ", " << p1.second.buffer.size() << ")" << std::endl;
                             m_send_futures.push_back(comm.isend(
                                 p1.second.address,
@@ -340,7 +340,7 @@ namespace gridtools {
 
         // compute memory requirements to be allocated on the device
         template<typename Device, typename ValueType, typename BufferType, typename Memory, typename Halos, typename Function, typename DeviceIdType>
-        void allocate(Memory& memory, const Halos& halos, Function&& func, domain_id_type my_dom_id, DeviceIdType device_id, 
+        void allocate(Memory& memory, const Halos& halos, Function&& func, domain_id_type my_dom_id, DeviceIdType device_id,
                       int tag_offset, bool receive)
         {
             for (const auto& p_id_c : halos)
@@ -350,7 +350,7 @@ namespace gridtools {
                 const auto remote_address = p_id_c.first.address;
                 const auto remote_dom_id  = p_id_c.first.id;
                 domain_id_type left, right;
-                if (receive) 
+                if (receive)
                 {
                     left  = my_dom_id;
                     right = remote_dom_id;
@@ -396,14 +396,14 @@ namespace gridtools {
         struct test_eq_t {};
 
         template<typename Test, typename T0, typename T1, typename... Ts>
-        struct test_eq_t<Test,T0,T1,Ts...> : public 
+        struct test_eq_t<Test,T0,T1,Ts...> : public
             std::integral_constant<
-                bool, 
+                bool,
                 std::is_same<Test,T0>::value && test_eq_t<Test,T1,Ts...>::value
             > {};
 
         template<typename Test, typename T0>
-        struct test_eq_t<Test,T0> : public 
+        struct test_eq_t<Test,T0> : public
             std::integral_constant<bool, std::is_same<Test,T0>::value> {};
 
     } // namespace detail
@@ -438,7 +438,7 @@ namespace gridtools {
 
         return communication_object<protocol_type,grid_type,domain_id_type>(pat_ptr_map);
     }
-        
+} // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_COMMUNICATION_OBJECT_2_HPP */

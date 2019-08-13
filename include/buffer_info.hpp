@@ -1,12 +1,12 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_BUFFER_INFO_HPP
 #define INCLUDED_BUFFER_INFO_HPP
@@ -14,13 +14,13 @@
 #include <vector>
 
 namespace gridtools {
-
+namespace ghex {
     // forward declaration
     template<typename P, typename GridType, typename DomainIdType>
     class pattern;
     template<typename P, typename GridType, typename DomainIdType>
     class pattern_container;
-    
+
     // forward declaration
     template<typename Pattern, typename Device, typename Field>
     struct buffer_info;
@@ -40,8 +40,8 @@ namespace gridtools {
         using device_type              = Device;
         using field_type               = Field;
         using device_id_type           = typename device_type::id_type;
-        using value_type               = typename field_type::value_type; 
-   
+        using value_type               = typename field_type::value_type;
+
     private: // friend class
         friend class pattern<P,GridType,DomainIdType>;
 
@@ -64,7 +64,7 @@ namespace gridtools {
         field_type& m_field;
         device_id_type m_id;
     };
-
+} // namespace ghex
 } // namespace gridtools
 
 

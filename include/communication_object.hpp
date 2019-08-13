@@ -19,7 +19,7 @@
 #include "./utils.hpp"
 
 namespace gridtools {
-
+namespace ghex {
     /** @brief Allocator adaptor that interposes construct() calls
      ** to convert value initialization into default initialization.*/
     template <typename T, typename A=std::allocator<T>>
@@ -57,7 +57,7 @@ namespace gridtools {
     /** @brief cpu template specialization of the communication object
      * @tparam Pattern pattern type to be used for the communication*/
     template <typename Pattern>
-    class communication_object<Pattern, gridtools::cpu> {
+    class communication_object<Pattern, cpu> {
 
         /** @brief buffer element type*/
         using byte_t = unsigned char;
@@ -134,7 +134,7 @@ namespace gridtools {
             std::size_t size{0};
 
             for (const auto& is : iteration_spaces) {
-                gridtools::detail::for_each(data_descriptors, [&is, &size](const auto& dd) {
+                detail::for_each(data_descriptors, [&is, &size](const auto& dd) {
                     size += is.size() * dd.data_type_size();
                 });
             }
@@ -158,7 +158,7 @@ namespace gridtools {
 
             /* The two loops are performed with this order
              * in order to have as many data of the same type as possible in contiguos memory */
-            gridtools::detail::for_each(data_descriptors, [this, &iteration_spaces, &halo_index, &buffer_index](const auto& dd) {
+            detail::for_each(data_descriptors, [this, &iteration_spaces, &halo_index, &buffer_index](const auto& dd) {
                 for (const auto& is : iteration_spaces) {
                     dd.get(is, &m_send_buffers[halo_index][buffer_index]);
                     buffer_index += is.size() * dd.data_type_size();
@@ -190,7 +190,7 @@ namespace gridtools {
 
                 /* The two loops are performed with this order
                  * in order to have as many data of the same type as possible in contiguos memory */
-                gridtools::detail::for_each(m_data_descriptors, [this, &halo_index, &iteration_spaces, &buffer_index](auto& dd) {
+                detail::for_each(m_data_descriptors, [this, &halo_index, &iteration_spaces, &buffer_index](auto& dd) {
                     for (const auto& is : iteration_spaces) {
                         dd.set(is, &m_receive_buffers[halo_index][buffer_index]);
                         buffer_index += is.size() * dd.data_type_size();
@@ -329,7 +329,7 @@ namespace gridtools {
         }
 
     };
-
+} // namespace ghex
 }
 
 #endif /* INCLUDED_COMMUNICATION_OBJECT_HPP */

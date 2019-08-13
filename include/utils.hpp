@@ -16,7 +16,7 @@
 #include <gridtools/common/host_device.hpp>
 
 namespace gridtools {
-
+namespace ghex {
     namespace detail {
 
         /** @brief compile-time exponentiation of an integer base with positive integer exponent */
@@ -126,7 +126,7 @@ namespace gridtools {
             /**
              * @brief generate loop nest
              * @tparam Func functor with signature void(x_0,x_1,...) where x_i are coordinates
-             * @tparam Array coordinate vector type 
+             * @tparam Array coordinate vector type
              * @param f instance of functor
              * @param first start coordinate
              * @param last end coordinate (inclusive)
@@ -182,7 +182,7 @@ namespace gridtools {
         template<int D, int I, typename Layout>
         struct for_loop_pointer_arithmetic;
 
-        /** @brief generation of loop nest for an D-dimensional array assuming contiguous memory 
+        /** @brief generation of loop nest for an D-dimensional array assuming contiguous memory
          *
          * This template class provides compile time recursive nesting of D for-loops
          * and calls a function at the end of the iteration with the following 2 argments
@@ -210,7 +210,7 @@ namespace gridtools {
              * @param first first coordinate in loop nest
              * @param last last coordinate in loop nest
              * @param extent extent of multi-dimensional array of which [first, last] is a sub-region
-             * @param coordinate_offset distance from first coordinate in the multi-dimensional array to the origin (0,0,...). 
+             * @param coordinate_offset distance from first coordinate in the multi-dimensional array to the origin (0,0,...).
              * An array without buffer zones has a coordinate offset of (0,0,...), while the offset is (1,1,...) for an array with buffer zone of 1.
              */
             template<typename Func, typename Array, typename Array2>
@@ -221,19 +221,19 @@ namespace gridtools {
                 for(auto i=first[idx::value]; i<=last[idx::value]; ++i, ++iter)
                 {
                     for_loop_pointer_arithmetic<D,I-1,layout_t>::apply(
-                        std::forward<Func>(f), 
-                        std::forward<Array>(first), 
-                        std::forward<Array>(last), 
-                        std::forward<Array2>(extent), 
-                        std::forward<Array2>(coordinate_offset), 
-                        offset+i+coordinate_offset[idx::value], 
+                        std::forward<Func>(f),
+                        std::forward<Array>(first),
+                        std::forward<Array>(last),
+                        std::forward<Array2>(extent),
+                        std::forward<Array2>(coordinate_offset),
+                        offset+i+coordinate_offset[idx::value],
                         iter);
                 }
             }
 
         private: // implementation details
             template<typename Func, typename Array, typename Array2>
-            GT_FORCE_INLINE static void apply(Func&& f, Array&& first, Array&& last, Array2&& extent, Array2&& coordinate_offset, 
+            GT_FORCE_INLINE static void apply(Func&& f, Array&& first, Array&& last, Array2&& extent, Array2&& coordinate_offset,
                                      std::size_t offset, std::size_t iter) noexcept
             {
                 offset *= extent[idx::value];
@@ -241,12 +241,12 @@ namespace gridtools {
                 for(auto i=first[idx::value]; i<=last[idx::value]; ++i, ++iter)
                 {
                     for_loop_pointer_arithmetic<D,I-1,layout_t>::apply(
-                        std::forward<Func>(f), 
-                        std::forward<Array>(first), 
-                        std::forward<Array>(last), 
-                        std::forward<Array2>(extent), 
-                        std::forward<Array2>(coordinate_offset), 
-                        offset+i+coordinate_offset[idx::value], 
+                        std::forward<Func>(f),
+                        std::forward<Array>(first),
+                        std::forward<Array>(last),
+                        std::forward<Array2>(extent),
+                        std::forward<Array2>(coordinate_offset),
+                        offset+i+coordinate_offset[idx::value],
                         iter);
                 }
             }
@@ -257,7 +257,7 @@ namespace gridtools {
         struct for_loop_pointer_arithmetic<D,0,gridtools::layout_map<Args...>>
         {
             template<typename Func, typename Array, typename Array2>
-            GT_FORCE_INLINE static void apply(Func&& f, Array&&, Array&&, Array2&&, Array2&&, 
+            GT_FORCE_INLINE static void apply(Func&& f, Array&&, Array&&, Array2&&, Array2&&,
                                      std::size_t offset, std::size_t iter) noexcept
             {
                 // functor call with two arguments
@@ -268,7 +268,7 @@ namespace gridtools {
         };
 
     }   // namespace detail
-
+} // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_UTILS_HPP */

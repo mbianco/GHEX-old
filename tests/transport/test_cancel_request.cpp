@@ -9,10 +9,12 @@
 int rank;
 const int SIZE = 1<<12;
 
-bool test_simple(gridtools::ghex::mpi::communicator &comm, int rank) {
+namespace ghex = gridtools::ghex;
+
+bool test_simple(gridtools::ghex::communicator<ghex::mpi> &comm, int rank) {
 
     if (rank == 0) {
-        gridtools::ghex::mpi::shared_message<> smsg{SIZE, SIZE};
+        gridtools::ghex::shared_message<> smsg{SIZE, SIZE};
 
         int* data = smsg.data<int>();
 
@@ -26,7 +28,7 @@ bool test_simple(gridtools::ghex::mpi::communicator &comm, int rank) {
         bool ok = comm.cancel_callbacks();
         return ok;
     } else {
-        gridtools::ghex::mpi::message<> rmsg{SIZE, SIZE};
+        gridtools::ghex::message<> rmsg{SIZE, SIZE};
         auto fut = comm.recv(rmsg, 0, 42); // ~wrong tag to then cancel the calls
 
         bool ok = fut.cancel();
@@ -35,13 +37,12 @@ bool test_simple(gridtools::ghex::mpi::communicator &comm, int rank) {
 
 }
 
-bool test_single(gridtools::ghex::mpi::communicator &comm, int rank) {
+bool test_single(gridtools::ghex::communicator<ghex::mpi> &comm, int rank) {
 
     if (rank == 0) {
-        gridtools::ghex::mpi::shared_message<> smsg{SIZE, SIZE};
+        gridtools::ghex::shared_message<> smsg{SIZE, SIZE};
 
         std::array<int, 3> dsts = {1,2,3};
-        std::array<gridtools::ghex::mpi::communicator::request_type, 3> reqs;
 
         for (int dst : dsts) {
             comm.send(smsg, dst, 45, [smsg](int,int) {} );
@@ -60,7 +61,7 @@ bool test_single(gridtools::ghex::mpi::communicator &comm, int rank) {
         return ok;
 
     } else {
-        gridtools::ghex::mpi::message<> rmsg{SIZE, SIZE};
+        gridtools::ghex::message<> rmsg{SIZE, SIZE};
         comm.recv(rmsg, 0, 43, [](int, int) {}); // unmatching tag
         auto fut = comm.detach(0,43);
         bool ok = fut.cancel();
@@ -75,11 +76,11 @@ bool test_single(gridtools::ghex::mpi::communicator &comm, int rank) {
 
 class call_back {
     int & m_value;
-    gridtools::ghex::mpi::communicator& m_comm;
-    gridtools::ghex::mpi::message<>& m_msg;
+    gridtools::ghex::communicator<ghex::mpi>& m_comm;
+    gridtools::ghex::message<>& m_msg;
 
 public:
-    call_back(int& a, gridtools::ghex::mpi::communicator& c, gridtools::ghex::mpi::message<>& m)
+    call_back(int& a, gridtools::ghex::communicator<ghex::mpi>& c, gridtools::ghex::message<>& m)
     : m_value(a)
     , m_comm{c}
     , m_msg{m}
@@ -91,12 +92,12 @@ public:
     }
 };
 
-bool test_send_10(gridtools::ghex::mpi::communicator &comm, int rank) {
+bool test_send_10(gridtools::ghex::communicator<ghex::mpi> &comm, int rank) {
     while (comm.progress()) {}
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (rank == 0) {
-        gridtools::ghex::mpi::shared_message<> smsg{sizeof(int), sizeof(int)};
+        gridtools::ghex::shared_message<> smsg{sizeof(int), sizeof(int)};
         for (int i = 0; i < 10; ++i) {
             int v = i;
             smsg.data<int>()[0] = v;
@@ -110,7 +111,7 @@ bool test_send_10(gridtools::ghex::mpi::communicator &comm, int rank) {
     } else {
         int value = -11111111;
 
-        gridtools::ghex::mpi::message<> rmsg{sizeof(int), sizeof(int)};
+        gridtools::ghex::message<> rmsg{sizeof(int), sizeof(int)};
 
         comm.recv(rmsg, 0, 42, call_back{value, comm, rmsg});
 
@@ -136,7 +137,7 @@ TEST(transport, cancel_requests_reposting) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    gridtools::ghex::mpi::communicator comm;
+    gridtools::ghex::communicator<ghex::mpi> comm;
 
     EXPECT_TRUE(test_send_10(comm, rank));
 
@@ -146,7 +147,7 @@ TEST(transport, cancel_requests_simple) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    gridtools::ghex::mpi::communicator comm;
+    gridtools::ghex::communicator<ghex::mpi> comm;
 
     EXPECT_TRUE(test_simple(comm, rank));
 
@@ -156,7 +157,7 @@ TEST(transport, cancel_single_request) {
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    gridtools::ghex::mpi::communicator comm;
+    gridtools::ghex::communicator<ghex::mpi> comm;
 
     EXPECT_TRUE(test_single(comm, rank));
 }

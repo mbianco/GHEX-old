@@ -7,6 +7,7 @@
 const int SIZE = 4000000;
 int mpi_rank;
 
+namespace ghex = gridtools::ghex;
 
 TEST(transport, send_multi) {
 
@@ -21,12 +22,12 @@ TEST(transport, send_multi) {
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    gridtools::ghex::mpi::communicator comm;
+    gridtools::ghex::communicator<ghex::mpi> comm;
 
     if (mpi_rank == 0) {
 
 
-        gridtools::ghex::mpi::shared_message<> smsg{SIZE, SIZE};
+        gridtools::ghex::shared_message<> smsg{SIZE, SIZE};
 
         int * data = smsg.data<int>();
 
@@ -57,7 +58,7 @@ TEST(transport, send_multi) {
 
 
     } else {
-        gridtools::ghex::mpi::message<> rmsg{SIZE, SIZE};
+        gridtools::ghex::message<> rmsg{SIZE, SIZE};
         auto fut = comm.recv(rmsg, 0, 42);
         fut.wait();
 

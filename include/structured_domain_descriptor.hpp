@@ -21,7 +21,7 @@
 #include "./structured_grid.hpp"
 
 namespace gridtools {
-
+namespace ghex {
     // forward declaration
     template<typename DomainIdType, int Dimension>
     class structured_halo_generator;
@@ -229,7 +229,7 @@ namespace gridtools {
         std::array<int,dimension::value*2> m_halos;
         std::array<bool,dimension::value> m_periodic;
     };
-
+} // namespace ghex
 } // namespac gridtools
 
 #endif /* INCLUDED_STRUCTURED_DOMAIN_DESCRIPTOR_HPP */

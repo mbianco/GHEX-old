@@ -1,29 +1,27 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_MPI_HPP
 #define INCLUDED_MPI_HPP
 
 #include "./communicator_base.hpp"
 #include <boost/mpi/communicator.hpp>
+#include "../definitions.hpp"
 
 namespace gridtools {
-
+    namespace ghex {
     namespace protocol {
-
-        /** @brief mpi transport protocol tag */
-        struct mpi {};
 
         /** @brief mpi communicator */
         template<>
-        class communicator<mpi>
+        class old_mpi_communicator<mpi>
         {
         public:
             using protocol_type = mpi;
@@ -38,16 +36,16 @@ namespace gridtools {
              * @brief construct from MPI_Comm object
              * @param comm MPI_Comm communicator
              */
-            communicator(const MPI_Comm& comm)
+            old_mpi_communicator(const MPI_Comm& comm)
             :   m_comm(comm, boost::mpi::comm_attach) {}
 
             /** @brief copy construct */
-            communicator(const communicator& other) 
-            : communicator(other.m_comm) {} 
+            old_mpi_communicator(const old_mpi_communicator& other)
+            : old_mpi_communicator(other.m_comm) {}
 
             /** @return address of this process */
             address_type address() const { return m_comm.rank(); }
-            
+
             /** @return rank of this process */
             address_type rank() const { return m_comm.rank(); }
 
@@ -96,7 +94,7 @@ namespace gridtools {
              * @param vec source vector
              * @return completion handle
              */
-            template<typename T, template<typename, typename> class Vector, typename Allocator> 
+            template<typename T, template<typename, typename> class Vector, typename Allocator>
             future<void> isend(address_type dest, int tag, const Vector<T,Allocator>& vec) const
             {
                 return {std::move(m_comm.isend(dest, tag, reinterpret_cast<const char*>(vec.data()), sizeof(T)*vec.size()))};
@@ -113,7 +111,7 @@ namespace gridtools {
              * @param a allocator instance
              * @return future with vector of data
              */
-            template<typename T, template<typename, typename> class Vector = std::vector, typename Allocator = std::allocator<T>> 
+            template<typename T, template<typename, typename> class Vector = std::vector, typename Allocator = std::allocator<T>>
             [[nodiscard]] future<Vector<T,Allocator>> irecv(address_type source, int tag, int n, const Allocator& a = Allocator()) const
             {
                 using vector_type = Vector<T,Allocator>;
@@ -127,7 +125,7 @@ namespace gridtools {
         };
 
     } // namespace protocol
-
+    } // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_MPI_HPP */
