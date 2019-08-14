@@ -70,7 +70,7 @@ namespace ghex {
         /** @brief communication protocol, deduced form Pattern*/
         using communicator_t = typename Pattern::communicator_type;
         /** @brief future type, deduced form communicator, of type void*/
-        using future_t = typename communicator_t::template future<void>;
+        using future_t = typename communicator_t::future_type;
         /** @brief send buffer type, for now set to vector of bytes*/
         using s_buffer_t = std::vector<byte_t, default_init_allocator<byte_t>>;
         /** @brief receive buffer type, for now set to vector of bytes*/
@@ -287,11 +287,10 @@ namespace ghex {
 
                 m_receive_buffers[halo_index].resize(buffer_size(iteration_spaces, data_descriptors));
 
-                ordered_receive_requests.push_back(std::make_tuple(halo_index, ordered_domain_id, m_communicator.irecv(
+                ordered_receive_requests.push_back(std::make_tuple(halo_index, ordered_domain_id, m_communicator.recv(
+                                                              m_receive_buffers[halo_index],
                                                               source,
-                                                              tag,
-                                                              &m_receive_buffers[halo_index][0],
-                                                              static_cast<int>(m_receive_buffers[halo_index].size()))));
+                                                              tag)));
 
                 ++halo_index;
 
@@ -309,10 +308,8 @@ namespace ghex {
 
                 pack(halo_index, domain_id, data_descriptors);
 
-                send_requests.push_back(m_communicator.isend(dest,
-                                                             tag,
-                                                             &m_send_buffers[halo_index][0],
-                                                             static_cast<int>(m_send_buffers[halo_index].size())));
+                send_requests.push_back(m_communicator.send(m_send_buffers[halo_index], dest,
+                                                             tag));
 
                 ++halo_index;
 

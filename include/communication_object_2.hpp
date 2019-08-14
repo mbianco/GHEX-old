@@ -250,11 +250,10 @@ namespace ghex {
                             //std::cout << "irecv(" << p1.second.address << ", " << p1.second.tag
                             //<< ", " << p1.second.buffer.size() << ")" << std::endl;
                             p1.second.buffer.resize(p1.second.size);
-                            m_recv_futures.push_back(comm.irecv(
+                            m_recv_futures.push_back(comm.recv(
+                                p1.second.buffer,
                                 p1.second.address,
-                                p1.second.tag,
-                                p1.second.buffer.data(),
-                                p1.second.buffer.size()));
+                                p1.second.tag));
                             m_recv_hooks.push_back(std::make_pair(p1.second.buffer.data(),&(p1.second.field_buffers)));
                             m_completed_hooks.push_back(false);
                         }
@@ -274,10 +273,10 @@ namespace ghex {
                                 fb.call_back( p1.second.buffer.data() + fb.offset, *fb.index_container);
                             //std::cout << "isend(" << p1.second.address << ", " << p1.second.tag
                             //<< ", " << p1.second.buffer.size() << ")" << std::endl;
-                            m_send_futures.push_back(comm.isend(
+                            m_send_futures.push_back(comm.send(
+                                p1.second.buffer,
                                 p1.second.address,
-                                p1.second.tag,
-                                p1.second.buffer));
+                                p1.second.tag));
                         }
                     }
                 }
@@ -295,7 +294,7 @@ namespace ghex {
                 {
                     if (!m_completed_hooks[k])
                     {
-                        if (f.test())
+                        if (f.ready())
                         {
                             m_completed_hooks[k] = true;
                             for (const auto& fb : *m_recv_hooks[k].second)

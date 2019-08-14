@@ -18,6 +18,7 @@
 #include "./pattern.hpp"
 #include <map>
 #include <iosfwd>
+#include <type_traits>
 
 namespace gridtools {
 namespace ghex {
@@ -207,7 +208,7 @@ namespace ghex {
                 using domain_type               = typename std::remove_reference_t<DomainRange>::value_type;
                 using domain_id_type            = typename domain_type::domain_id_type;
                 using grid_type                 = detail::structured_grid<CoordinateArrayType>;
-                using pattern_type              = pattern<typename TransportLayer::transport_type, grid_type, domain_id_type>;
+                using pattern_type              = pattern<typename std::remove_reference<TransportLayer>::type::transport_type, grid_type, domain_id_type>;
                 using iteration_space           = typename pattern_type::iteration_space;
                 using iteration_space_pair      = typename pattern_type::iteration_space_pair;
                 using coordinate_type           = typename pattern_type::coordinate_type;
@@ -546,7 +547,7 @@ namespace ghex {
                     }
                 }
 
-                return pattern_container<typename TransportLayer::transport_type,grid_type,domain_id_type>(std::move(my_patterns), m_max_tag);
+                return pattern_container<typename std::remove_reference<TransportLayer>::type::transport_type,grid_type,domain_id_type>(std::move(my_patterns), m_max_tag);
             }
         };
 
