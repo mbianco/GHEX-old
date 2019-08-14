@@ -123,7 +123,7 @@ bool test0()
     boost::mpi::communicator mpi_comm;
 
     // need communicator to decompose domain
-    gridtools::ghex::protocol::old_mpi_communicator<gridtools::ghex::mpi> comm{mpi_comm};
+    gridtools::ghex::communicator<gridtools::ghex::mpi> comm{gridtools::ghex::communicator_traits{mpi_comm}};
 
     // local portion per domain
     const std::array<int,3> local_ext{10,15,20};

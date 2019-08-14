@@ -13,7 +13,9 @@
 
 namespace gridtools {
     namespace ghex {
-        struct mpi {};
+        struct mpi {
+            using rank_type = int;
+        };
     }
 }
 #endif

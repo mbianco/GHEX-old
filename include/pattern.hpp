@@ -12,7 +12,7 @@
 #define INCLUDED_PATTERN_HPP
 
 #include "./protocol/setup.hpp"
-#include "./protocol/mpi.hpp"
+//#include "./protocol/mpi.hpp"
 #include "./buffer_info.hpp"
 
 namespace gridtools {

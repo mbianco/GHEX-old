@@ -8,8 +8,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef GHEX_MPI_COMMUNICATOR_HPP
-#define GHEX_MPI_COMMUNICATOR_HPP
+#ifndef GHEX_TL_MPI_COMMUNICATOR_HPP
+#define GHEX_TL_MPI_COMMUNICATOR_HPP
 
 #include <iostream>
 #include <mpi.h>
@@ -125,6 +125,12 @@ public:
         rank_type rank;
         CHECK_MPI_ERROR(MPI_Comm_rank(m_mpi_comm, &rank));
         return rank;
+    }
+
+    int size() const {
+        int size;;
+        CHECK_MPI_ERROR(MPI_Comm_size(m_mpi_comm, &size));
+        return size;
     }
 
     /** Send a message to a destination with the given tag.

@@ -13,6 +13,8 @@
 
 #include "./structured_grid.hpp"
 #include "./protocol/communicator_base.hpp"
+#include "./transport_layer/communicator.hpp"
+#include "./transport_layer/mpi/communicator.hpp"
 #include "./pattern.hpp"
 #include <map>
 #include <iosfwd>
@@ -27,18 +29,18 @@ namespace ghex {
      * @tparam P transport protocol
      * @tparam CoordinateArrayType coordinate-like array type
      * @tparam DomainIdType domain id type*/
-    template<typename TransportLayer, typename CoordinateArrayType, typename DomainIdType>
-    class pattern<TransportLayer,detail::structured_grid<CoordinateArrayType>,DomainIdType>
+    template<typename TransportLayerTag, typename CoordinateArrayType, typename DomainIdType>
+    class pattern<TransportLayerTag,detail::structured_grid<CoordinateArrayType>,DomainIdType>
     {
     public: // member types
         using grid_type               = detail::structured_grid<CoordinateArrayType>;
         using coordinate_type         = typename grid_type::coordinate_type;
         using coordinate_element_type = typename grid_type::coordinate_element_type;
         using dimension               = typename grid_type::dimension;
-        using communicator_type       = TransportLayer;
+        using communicator_type       = ::gridtools::ghex::communicator<TransportLayerTag>;
         using address_type            = typename communicator_type::rank_type;
         using domain_id_type          = DomainIdType;
-        using pattern_container_type  = pattern_container<typename TransportLayer::transport_type,grid_type,DomainIdType>;
+        using pattern_container_type  = pattern_container<typename communicator_type::transport_type, grid_type,DomainIdType>;
 
         // this struct holds the first and the last coordinate (inclusive)
         // of a hypercube in N-dimensional space.
@@ -153,7 +155,7 @@ namespace ghex {
             return s;
         }
 
-        friend class pattern_container<typename TransportLayer::transport_type,grid_type,DomainIdType>;
+        friend class pattern_container<TransportLayerTag, grid_type, DomainIdType>;
 
     private: // members
         communicator_type       m_comm;
@@ -205,9 +207,9 @@ namespace ghex {
                 using domain_type               = typename std::remove_reference_t<DomainRange>::value_type;
                 using domain_id_type            = typename domain_type::domain_id_type;
                 using grid_type                 = detail::structured_grid<CoordinateArrayType>;
-                using pattern_type              = pattern<TransportLayer, grid_type, domain_id_type>;
+                using pattern_type              = pattern<typename TransportLayer::transport_type, grid_type, domain_id_type>;
                 using iteration_space           = typename pattern_type::iteration_space;
-                using iteration_space_pair          = typename pattern_type::iteration_space_pair;
+                using iteration_space_pair      = typename pattern_type::iteration_space_pair;
                 using coordinate_type           = typename pattern_type::coordinate_type;
                 using extended_domain_id_type   = typename pattern_type::extended_domain_id_type;
 
@@ -544,7 +546,7 @@ namespace ghex {
                     }
                 }
 
-                return pattern_container<TransportLayer,grid_type,domain_id_type>(std::move(my_patterns), m_max_tag);
+                return pattern_container<typename TransportLayer::transport_type,grid_type,domain_id_type>(std::move(my_patterns), m_max_tag);
             }
         };
 

@@ -43,15 +43,15 @@ namespace ghex {
      * @tparam P message protocol type
      * @tparam GridType grid tag type
      * @tparam DomainIdType domain id type*/
-    template<typename P, typename GridType, typename DomainIdType>
+    template<typename Pattern, typename GridType, typename DomainIdType>
     class communication_handle
     {
     private: // friend class
-        friend class communication_object<P,GridType,DomainIdType>;
+        friend class communication_object<Pattern,GridType,DomainIdType>;
 
     private: // member types
-        using co_t              = communication_object<P,GridType,DomainIdType>;
-        using communicator_type = protocol::old_mpi_communicator<P>;
+        using co_t              = communication_object<Pattern,GridType,DomainIdType>;
+        using communicator_type = typename Pattern::communicator_type;
 
     private: // private constructor
         communication_handle(co_t& co, const communicator_type& comm)
@@ -75,22 +75,22 @@ namespace ghex {
      * @tparam P message protocol type
      * @tparam GridType grid tag type
      * @tparam DomainIdType domain id type*/
-    template<typename P, typename GridType, typename DomainIdType>
+    template<typename Pattern, typename GridType, typename DomainIdType>
     class communication_object
     {
     private: // friend class
-        friend class communication_handle<P,GridType,DomainIdType>;
+        friend class communication_handle<Pattern,GridType,DomainIdType>;
 
     public: // member types
         /** @brief handle type returned by exhange operation */
-        using handle_type             = communication_handle<P,GridType,DomainIdType>;
+        using handle_type             = communication_handle<Pattern,GridType,DomainIdType>;
         using domain_id_type          = DomainIdType;
 
     private: // member types
-        using communicator_type       = typename handle_type::communicator_type;
-        using address_type            = typename communicator_type::address_type;
+        using communicator_type       = typename Pattern::communicator_type;
+        using address_type            = typename communicator_type::rank_type;
 
-        using pattern_type            = pattern<P,GridType,DomainIdType>;
+        using pattern_type            = Pattern;
         using index_container_type    = typename pattern_type::index_container_type;
         using pack_function_type      = std::function<void(void*,const index_container_type&)>;
         using unpack_function_type    = std::function<void(const void*,const index_container_type&)>;
@@ -153,8 +153,8 @@ namespace ghex {
         bool m_valid;
         std::map<const typename pattern_type::pattern_container_type*, int> m_max_tag_map;
         memory_type m_mem;
-        std::vector<typename communicator_type::template future<void>> m_send_futures;
-        std::vector<typename communicator_type::template future<void>> m_recv_futures;
+        std::vector<typename communicator_type::future_type > m_send_futures;
+        std::vector<typename communicator_type::future_type > m_recv_futures;
         std::vector<std::pair<char*,std::vector<field_buffer<unpack_function_type>>*>> m_recv_hooks;
         std::vector<bool> m_completed_hooks;
 
@@ -406,7 +406,13 @@ namespace ghex {
         struct test_eq_t<Test,T0> : public
             std::integral_constant<bool, std::is_same<Test,T0>::value> {};
 
+        template <typename T, typename ...Ts>
+        struct get_first {
+            using type = T;
+        };
+
     } // namespace detail
+
 
     /** @brief creates a communication object based on the patterns involved
      * @tparam Patterns list of pattern types
@@ -417,12 +423,12 @@ namespace ghex {
     {
         using ps_t = std::tuple<typename Patterns::value_type...>;
         using p_t  = std::tuple_element_t<0,ps_t>;
-        using protocol_type    = typename p_t::communicator_type::transport_type;
         using grid_type        = typename p_t::grid_type;
         using domain_id_type   = typename p_t::domain_id_type;
 
-        using test_t = pattern_container<protocol_type,grid_type,domain_id_type>;
-        static_assert(detail::test_eq_t<test_t,Patterns...>::value, "patterns are incompatible");
+        static_assert(detail::test_eq_t<Patterns...>::value, "patterns are incompatible");
+
+        using test_t = typename detail::get_first<Patterns...>::type;
 
         // test for repeating patterns by looking at the patterns address
         // if repetitions are found, the tag offset is not increased
@@ -436,7 +442,7 @@ namespace ghex {
                 max_tag += ptrs[k]->max_tag()+1;
         }
 
-        return communication_object<protocol_type,grid_type,domain_id_type>(pat_ptr_map);
+        return communication_object< p_t ,grid_type, domain_id_type >(pat_ptr_map);
     }
 } // namespace ghex
 } // namespace gridtools
