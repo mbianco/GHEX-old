@@ -13,6 +13,7 @@
 #include "../include/simple_field_wrapper.hpp"
 #include "../include/structured_pattern.hpp"
 #include "../include/communication_object_2.hpp"
+#include <transport_layer/mpi/communicator.hpp>
 #include <boost/mpi/environment.hpp>
 #include <array>
 #include <iomanip>
@@ -192,8 +193,8 @@ bool test0()
     auto halo_gen2 = domain_descriptor_type::halo_generator_type(g_first, g_last, halos2, periodic);
 
     // make patterns
-    auto pattern1 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(mpi_comm, halo_gen1, local_domains);
-    auto pattern2 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(mpi_comm, halo_gen2, local_domains);
+    auto pattern1 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(mpi_comm, gridtools::ghex::communicator<gridtools::ghex::mpi>{}, halo_gen1, local_domains);
+    auto pattern2 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(mpi_comm, gridtools::ghex::communicator<gridtools::ghex::mpi>{}, halo_gen2, local_domains);
 
     // communication object
     auto co   = gridtools::ghex::make_communication_object(pattern1,pattern2);

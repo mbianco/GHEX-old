@@ -417,7 +417,7 @@ namespace ghex {
     {
         using ps_t = std::tuple<typename Patterns::value_type...>;
         using p_t  = std::tuple_element_t<0,ps_t>;
-        using protocol_type    = typename p_t::communicator_type::protocol_type;
+        using protocol_type    = typename p_t::communicator_type::transport_type;
         using grid_type        = typename p_t::grid_type;
         using domain_id_type   = typename p_t::domain_id_type;
 

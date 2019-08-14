@@ -98,17 +98,19 @@ struct mpi_future
 template <>
 class communicator<mpi>
 {
-private:
+public:
     using tag_type = int;
     using rank_type = int;
 
+    using future_type = _impl::mpi_future;
+    using transport_type = mpi;
+
+private:
     std::unordered_map<MPI_Request, std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type>> m_callbacks;
 
     MPI_Comm m_mpi_comm;
 
 public:
-    using future_type = _impl::mpi_future;
-
     communicator(communicator_traits const &ct = communicator_traits{}) : m_mpi_comm{ct.communicator()} {}
 
     ~communicator()
@@ -117,6 +119,12 @@ public:
         {
             std::terminate();
         }
+    }
+
+    rank_type rank() const {
+        rank_type rank;
+        CHECK_MPI_ERROR(MPI_Comm_rank(m_mpi_comm, &rank));
+        return rank;
     }
 
     /** Send a message to a destination with the given tag.

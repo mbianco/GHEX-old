@@ -27,18 +27,18 @@ namespace ghex {
      * @tparam P transport protocol
      * @tparam CoordinateArrayType coordinate-like array type
      * @tparam DomainIdType domain id type*/
-    template<typename P, typename CoordinateArrayType, typename DomainIdType>
-    class pattern<P,detail::structured_grid<CoordinateArrayType>,DomainIdType>
+    template<typename TransportLayer, typename CoordinateArrayType, typename DomainIdType>
+    class pattern<TransportLayer,detail::structured_grid<CoordinateArrayType>,DomainIdType>
     {
     public: // member types
         using grid_type               = detail::structured_grid<CoordinateArrayType>;
         using coordinate_type         = typename grid_type::coordinate_type;
         using coordinate_element_type = typename grid_type::coordinate_element_type;
         using dimension               = typename grid_type::dimension;
-        using communicator_type       = protocol::old_mpi_communicator<P>;
-        using address_type            = typename communicator_type::address_type;
+        using communicator_type       = TransportLayer;
+        using address_type            = typename communicator_type::rank_type;
         using domain_id_type          = DomainIdType;
-        using pattern_container_type  = pattern_container<P,grid_type,DomainIdType>;
+        using pattern_container_type  = pattern_container<typename TransportLayer::transport_type,grid_type,DomainIdType>;
 
         // this struct holds the first and the last coordinate (inclusive)
         // of a hypercube in N-dimensional space.
@@ -153,7 +153,7 @@ namespace ghex {
             return s;
         }
 
-        friend class pattern_container<P,grid_type,DomainIdType>;
+        friend class pattern_container<typename TransportLayer::transport_type,grid_type,DomainIdType>;
 
     private: // members
         communicator_type       m_comm;
@@ -198,21 +198,21 @@ namespace ghex {
         template<typename CoordinateArrayType>
         struct make_pattern_impl<detail::structured_grid<CoordinateArrayType>>
         {
-            template<typename P, typename HaloGenerator, typename DomainRange>
-            static auto apply(protocol::setup_communicator& comm, protocol::old_mpi_communicator<P>& new_comm, HaloGenerator&& hgen, DomainRange&& d_range)
+            template<typename TransportLayer, typename HaloGenerator, typename DomainRange>
+            static auto apply(protocol::setup_communicator& comm, TransportLayer&& new_comm, HaloGenerator&& hgen, DomainRange&& d_range)
             {
                 // typedefs
                 using domain_type               = typename std::remove_reference_t<DomainRange>::value_type;
                 using domain_id_type            = typename domain_type::domain_id_type;
                 using grid_type                 = detail::structured_grid<CoordinateArrayType>;
-                using pattern_type              = pattern<P, grid_type, domain_id_type>;
+                using pattern_type              = pattern<TransportLayer, grid_type, domain_id_type>;
                 using iteration_space           = typename pattern_type::iteration_space;
                 using iteration_space_pair          = typename pattern_type::iteration_space_pair;
                 using coordinate_type           = typename pattern_type::coordinate_type;
                 using extended_domain_id_type   = typename pattern_type::extended_domain_id_type;
 
                 // get this address from new communicator
-                auto my_address = new_comm.address();
+                auto my_address = new_comm.rank();
 
                 // set up domain ids, extents and recv halos
                 std::vector<iteration_space_pair>              my_domain_extents;
@@ -544,7 +544,7 @@ namespace ghex {
                     }
                 }
 
-                return pattern_container<P,grid_type,domain_id_type>(std::move(my_patterns), m_max_tag);
+                return pattern_container<TransportLayer,grid_type,domain_id_type>(std::move(my_patterns), m_max_tag);
             }
         };
 

@@ -82,22 +82,13 @@ namespace ghex {
 
     namespace detail {
         // implementation detail
-        template<typename GridType, typename P, typename HaloGenerator, typename DomainRange>
-        auto make_pattern(protocol::setup_communicator& setup_comm, protocol::old_mpi_communicator<P>& comm, HaloGenerator&& hgen, DomainRange&& d_range)
+        template<typename GridType, typename TransportLayer, typename HaloGenerator, typename DomainRange>
+        auto make_pattern(protocol::setup_communicator& setup_comm, TransportLayer&& comm, HaloGenerator&& hgen, DomainRange&& d_range)
         {
             using grid_type = typename GridType::template type<typename std::remove_reference_t<DomainRange>::value_type>;
-            return detail::make_pattern_impl<grid_type>::apply(setup_comm, comm, std::forward<HaloGenerator>(hgen), std::forward<DomainRange>(d_range));
+            return detail::make_pattern_impl<grid_type>::apply(setup_comm, std::forward<TransportLayer>(comm), std::forward<HaloGenerator>(hgen), std::forward<DomainRange>(d_range));
         }
     } // namespace detail
-
-    // helper function if transport protocol is also MPI
-    template<typename GridType, typename HaloGenerator, typename DomainRange>
-    auto make_pattern(MPI_Comm mpi_comm, HaloGenerator&& hgen, DomainRange&& d_range)
-    {
-        protocol::old_mpi_communicator<ghex::mpi> mpi_comm_(mpi_comm);
-        protocol::setup_communicator setup_comm(mpi_comm);
-        return detail::make_pattern<GridType>(setup_comm, mpi_comm_, hgen, d_range);
-    }
 
     /**
      * @brief construct a pattern for each domain and establish neighbor relationships
@@ -111,11 +102,11 @@ namespace ghex {
      * @param d_range range of local domains
      * @return iterable of patterns (one per domain)
      */
-    template<typename GridType, typename P, typename HaloGenerator, typename DomainRange>
-    auto make_pattern(MPI_Comm mpi_comm, protocol::old_mpi_communicator<P>& comm, HaloGenerator&& hgen, DomainRange&& d_range)
+    template<typename GridType, typename TransportLayer, typename HaloGenerator, typename DomainRange>
+    auto make_pattern(MPI_Comm mpi_comm, TransportLayer&& comm, HaloGenerator&& hgen, DomainRange&& d_range)
     {
         protocol::setup_communicator setup_comm(mpi_comm);
-        return detail::make_pattern<GridType>(setup_comm, comm, hgen, d_range);
+        return detail::make_pattern<GridType>(setup_comm, std::forward<TransportLayer>(comm), hgen, d_range);
     }
 
 } // namespace ghex
