@@ -162,7 +162,8 @@ namespace halo_exchange_3D_generic_full {
 #endif
 
         // make patterns
-        auto pattern_1 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(world, halo_gen_1, local_domains);
+        gridtools::ghex::communicator<gridtools::ghex::mpi> comm{gridtools::ghex::communicator_traits{world}};
+        auto pattern_1 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(world, comm, halo_gen_1, local_domains);
 #ifndef GHEX_1_PATTERN_BENCHMARK
         auto pattern_2 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(world, halo_gen_2, local_domains);
         auto pattern_3 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(world, halo_gen_3, local_domains);

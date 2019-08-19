@@ -184,9 +184,10 @@ namespace halo_exchange_3D_generic_full {
         auto halo_gen_2 = halo_generator_t{g_first, g_last, halos_2, periodic};
         auto halo_gen_3 = halo_generator_t{g_first, g_last, halos_3, periodic};
 
-        auto patterns_1 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(CartComm, halo_gen_1, local_domains);
-        auto patterns_2 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(CartComm, halo_gen_2, local_domains);
-        auto patterns_3 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(CartComm, halo_gen_3, local_domains);
+        gridtools::ghex::communicator<gridtools::ghex::mpi> comm{gridtools::ghex::communicator_traits{MPI_COMM_WORLD}};
+        auto patterns_1 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(CartComm, comm, halo_gen_1, local_domains);
+        auto patterns_2 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(CartComm, comm, halo_gen_2, local_domains);
+        auto patterns_3 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(CartComm, comm, halo_gen_3, local_domains);
 
         using communication_object_t = gridtools::ghex::communication_object<decltype(patterns_1)::value_type, gridtools::ghex::cpu>; // same type for all patterns
 
