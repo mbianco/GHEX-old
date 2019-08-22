@@ -20,6 +20,10 @@
 #include <cassert>
 #include "./message.hpp"
 #include "./communicator_traits.hpp"
+#include <algorithm>
+#include <deque>
+#include <boost/optional.hpp>
+#include <boost/callable_traits.hpp>
 
 namespace gridtools
 {
@@ -83,6 +87,10 @@ struct mpi_future
         CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
         return flag;
     }
+
+    private:
+        friend ::gridtools::ghex::mpi::communicator;
+        MPI_Request request() const { return m_req; }
 };
 
 class cb_request_t
@@ -120,24 +128,100 @@ protected:
      */
 class communicator
 {
+public:
+    using future_type = _impl::mpi_future;
+    using request_type = _impl::cb_request_t;
+
 private:
     using tag_type = int;
     using rank_type = int;
 
-    std::unordered_map<MPI_Request, std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type>> m_callbacks;
+    /*template<typename Msg>
+    struct call_back_
+    {
+        Msg m_msg;
+        std::function<void(rank_type, tag_type, Msg&&)> m_inner_cb;
 
+        template<typename Callback>
+        call_back_(Msg&& msg, Callback&& cb)
+        : m_msg(std::move(msg)), m_inner_cb(std::forward<Callback>(cb))
+        {}
+
+        // dangerous ahead:
+        call_back_(const call_back_& x)
+        : m_msg(std::move(x.m_msg)),
+          m_inner_cb(std::move(x.m_inner_cb))
+        {}
+
+        call_back_(call_back_&&) = default;
+
+        call_back_& operator=(call_back_&&) = default;
+
+        void operator()(rank_type r, tag_type t)
+        {
+            m_inner_cb(r,t,std::move(m_msg));
+        }
+
+        Msg& message() { return m_msg; }
+    };*/
+
+    template<typename Msg>
+    struct call_back2_
+    {
+        Msg& m_msg;
+        std::function<void(rank_type, tag_type, Msg&)> m_inner_cb;
+
+        template<typename Callback>
+        call_back2_(Msg& msg, Callback&& cb)
+        : m_msg(msg), m_inner_cb(std::forward<Callback>(cb))
+        {}
+
+        call_back2_(const call_back2_& x) = default;
+        call_back2_(call_back2_&&) = default;
+
+        void operator()(rank_type r, tag_type t)
+        {
+            m_inner_cb(r,t,m_msg);
+        }
+
+        Msg& message() { return m_msg; }
+    };
+
+    template<typename Msg>
+    struct call_back3_
+    {
+        Msg m_msg;
+        std::function<void(rank_type, tag_type, Msg&)> m_inner_cb;
+
+        template<typename Callback>
+        call_back3_(Msg&& msg, Callback&& cb)
+        : m_msg(std::move(msg)), m_inner_cb(std::forward<Callback>(cb))
+        {}
+
+        call_back3_(const call_back3_& x) = default;
+        call_back3_(call_back3_&&) = default;
+
+        void operator()(rank_type r, tag_type t)
+        {
+            m_inner_cb(r,t,m_msg);
+        }
+
+        Msg& message() { return m_msg; }
+    };
+
+public:
+    using element_t = std::tuple<std::function<void(rank_type, tag_type)>, rank_type, tag_type, future_type>;
+    using cb_container_t = std::deque<element_t>;
+    std::array<cb_container_t,2> m_callbacks;
     MPI_Comm m_mpi_comm;
 
 public:
-    using send_future = _impl::mpi_future;
-    using recv_future = _impl::mpi_future;
-    using request_type = _impl::cb_request_t;
 
     communicator(communicator_traits const &ct = communicator_traits{}) : m_mpi_comm{ct.communicator()} {}
 
     ~communicator()
     {
-        if (m_callbacks.size() != 0)
+        if (m_callbacks[0].size() != 0 || m_callbacks[1].size() != 0)
         {
             std::terminate();
         }
@@ -156,7 +240,7 @@ public:
          * @return A future that will be ready when the message can be reused (e.g., filled with new data to send)
          */
     template <typename MsgType>
-    [[nodiscard]] send_future send(MsgType const &msg, rank_type dst, tag_type tag) const {
+    [[nodiscard]] future_type send(MsgType const &msg, rank_type dst, tag_type tag) const {
         MPI_Request req;
         CHECK_MPI_ERROR(MPI_Isend(msg.data(), msg.size(), MPI_BYTE, dst, tag, m_mpi_comm, &req));
         return req;
@@ -174,16 +258,27 @@ public:
          * @param tag Tag associated with the message
          * @param cb  Call-back function with signature void(int, int)
          *
-         * @return A value of type `request_type` that can be used to cancel the request if needed.
          */
     template <typename MsgType, typename CallBack>
-    _impl::cb_request_t send(MsgType const &msg, rank_type dst, tag_type tag, CallBack &&cb)
+    //std::enable_if_t<!std::is_reference<MsgType>::value>
+    void 
+    send(MsgType const &msg, rank_type dst, tag_type tag, CallBack &&cb)
     {
         MPI_Request req;
         CHECK_MPI_ERROR(MPI_Isend(msg.data(), msg.size(), MPI_BYTE, dst, tag, m_mpi_comm, &req));
-        m_callbacks.emplace(std::make_pair(req, std::make_tuple(std::forward<CallBack>(cb), dst, tag)));
-        return req;
+        m_callbacks[0].push_back( std::make_tuple(std::forward<CallBack>(cb), dst, tag, future_type(req)) );
     }
+
+    /*template <typename MsgType, typename CallBack>
+    std::enable_if_t<std::is_rvalue_reference<MsgType&&>::value>
+    //void 
+    send(MsgType&& msg, rank_type dst, tag_type tag, CallBack &&cb)
+    {
+        call_back_<MsgType> cb2(std::move(msg), std::forward<CallBack>(cb));
+        MPI_Request req;
+        CHECK_MPI_ERROR(MPI_Isend(cb.message().data(), cb.message().size(), MPI_BYTE, dst, tag, m_mpi_comm, &req));
+        m_callbacks.emplace(std::make_pair(req, std::make_tuple(std::move(cb2), dst, tag)));
+    }*/
 
     /** Send a message to a destination with the given tag. This function blocks until the message has been sent and
          * the message ready to be reused
@@ -213,7 +308,7 @@ public:
          * @return A future that will be ready when the message can be read
          */
     template <typename MsgType>
-    [[nodiscard]] recv_future recv(MsgType &msg, rank_type src, tag_type tag) const {
+    [[nodiscard]] future_type recv(MsgType &msg, rank_type src, tag_type tag) const {
         MPI_Request request;
         CHECK_MPI_ERROR(MPI_Irecv(msg.data(), msg.size(), MPI_BYTE, src, tag, m_mpi_comm, &request));
         return request;
@@ -226,22 +321,80 @@ public:
          * @tparam MsgType message type (this could be a std::vector<unsigned char> or a message found in message.hpp)
          * @tparam CallBack Funciton to call when the message has been sent and the message ready to be read
          *
-         * @param msg Const reference to a message that will contain the data
+         * @param msg rvalue reference to a message that will contain the data
          * @param src Source of the message
          * @param tag Tag associated with the message
-         * @param cb  Call-back function with signature void(int, int)
+         * @param cb  Call-back function with signature void(int, int, MsgType&&)
          *
-         * @return A value of type `request_type` that can be used to cancel the request if needed.
          */
-    template <typename MsgType, typename CallBack>
-    _impl::cb_request_t recv(MsgType &msg, rank_type src, tag_type tag, CallBack &&cb)
-    {
-        MPI_Request request;
-        CHECK_MPI_ERROR(MPI_Irecv(msg.data(), msg.size(), MPI_BYTE, src, tag, m_mpi_comm, &request));
 
-        m_callbacks.emplace(std::make_pair(request, std::make_tuple(std::forward<CallBack>(cb), src, tag)));
-        return request;
+    // takes ownership of msg
+    template <typename MsgType, typename CallBack>
+    std::enable_if_t<std::is_rvalue_reference<MsgType&&>::value 
+    && std::is_same<std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>, MsgType&>::value >
+    recv(MsgType&& msg, rank_type src, tag_type tag, CallBack &&cb)
+    {
+        using MsgType_ref = std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>;
+        static_assert(std::is_same<MsgType_ref,MsgType&>::value, "callback parameter 3 is not an lvalue message type");
+        call_back3_<MsgType> cb2(std::move(msg), std::forward<CallBack>(cb));
+        MPI_Request req;
+        CHECK_MPI_ERROR(MPI_Irecv(cb2.message().data(), cb2.message().size(), MPI_BYTE, src, tag, m_mpi_comm, &req));
+        m_callbacks[1].push_back( std::make_tuple(std::move(cb2), src, tag, future_type(req)) );
     }
+
+    // uses msg reference (user is not allowed to delete it)
+    template <typename MsgType, typename CallBack>
+    std::enable_if_t<std::is_lvalue_reference<MsgType&>::value>
+    recv(MsgType& msg, rank_type src, tag_type tag, CallBack &&cb)
+    {
+        using MsgType_ref = std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>;
+        static_assert(std::is_same<MsgType_ref,MsgType&>::value, "callback parameter 3 is not an lvalue message type");
+        call_back2_<MsgType> cb2(msg, std::forward<CallBack>(cb));
+        MPI_Request req;
+        CHECK_MPI_ERROR(MPI_Irecv(cb2.message().data(), cb2.message().size(), MPI_BYTE, src, tag, m_mpi_comm, &req));
+        m_callbacks[1].push_back( std::make_tuple(std::move(cb2), src, tag, future_type(req)) );
+    }
+
+    // allocates msg internally with args...
+    template <typename CallBack, typename... Args>
+    std::enable_if_t<std::is_lvalue_reference<
+        std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>>::value>
+    recv(rank_type src, tag_type tag, CallBack&& cb, Args&&... args)
+    {
+        //std::cout << "using lvalue recv" << std::endl;
+        using MsgType_ref = std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>;
+        using MsgType = std::remove_reference_t<MsgType_ref>;
+        call_back3_<MsgType> cb2(MsgType(std::forward<Args>(args)...), std::forward<CallBack>(cb));
+        MPI_Request req;
+        CHECK_MPI_ERROR(MPI_Irecv(cb2.message().data(), cb2.message().size(), MPI_BYTE, src, tag, m_mpi_comm, &req));
+        m_callbacks[1].push_back( std::make_tuple(std::move(cb2), src, tag, future_type(req)) );
+    }
+
+    /*template <typename MsgType, typename CallBack>
+    std::enable_if_t<std::is_rvalue_reference<MsgType&&>::value 
+    && std::is_same<std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>, MsgType&&>::value >
+    recv(MsgType&& msg, rank_type src, tag_type tag, CallBack &&cb)
+    {
+        using MsgType_ref = std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>;
+        static_assert(std::is_same<MsgType_ref,MsgType&&>::value, "callback parameter 3 is not an rvalue message type");
+        call_back_<MsgType> cb2(std::move(msg), std::forward<CallBack>(cb));
+        MPI_Request req;
+        CHECK_MPI_ERROR(MPI_Irecv(cb2.message().data(), cb2.message().size(), MPI_BYTE, src, tag, m_mpi_comm, &req));
+        m_callbacks[1].push_back( std::make_tuple(std::move(cb2), src, tag, future_type(req)) );
+    }*/
+
+    /*template <typename CallBack, typename... Args>
+    std::enable_if_t<std::is_rvalue_reference<
+        std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>>::value>
+    recv(rank_type src, tag_type tag, CallBack&& cb, Args&&... args)
+    {
+        using MsgType_ref = std::tuple_element_t<2,boost::callable_traits::args_t<CallBack>>;
+        using MsgType = std::remove_reference_t<MsgType_ref>;
+        call_back_<MsgType> cb2(MsgType(std::forward<Args>(args)...), std::forward<CallBack>(cb));
+        MPI_Request req;
+        CHECK_MPI_ERROR(MPI_Irecv(cb2.message().data(), cb2.message().size(), MPI_BYTE, src, tag, m_mpi_comm, &req));
+        m_callbacks[1].push_back( std::make_tuple(std::move(cb2), src, tag, future_type(req)) );
+    }*/
 
     /** Send a message (shared_message type) to a set of destinations listed in
          * a container, with a same tag.
@@ -294,48 +447,139 @@ public:
     bool progress()
     {
 
-        auto i = m_callbacks.begin();
-        while (i != m_callbacks.end())
+        for (auto& cb_container : m_callbacks) 
         {
-#if (GHEX_DEBUG_LEVEL == 2)
+            const unsigned int size = cb_container.size();
+            for (unsigned int i=0; i<size; ++i) 
             {
-                int flag;
-                MPI_Status st;
-                MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &st);
-                if (flag)
+                element_t element = std::move(cb_container.front());
+                cb_container.pop_front();
+
+                if (std::get<3>(element).ready())
                 {
-                    int count;
-                    MPI_Get_count(&st, MPI_CHAR, &count);
-                    std::cout << "A message has been found with TAG " << st.MPI_TAG << " and size " << count << "bytes\n";
+                    auto f = std::move(std::get<0>(element));
+                    auto x = std::get<1>(element);
+                    auto y = std::get<2>(element);
+                    f(x, y);
+                    break;
                 }
                 else
                 {
-                    std::cout << "No message has been found\n";
+                    cb_container.push_back(std::move(element));
                 }
             }
-#endif
-            int flag;
-            MPI_Status status;
-            MPI_Request r = i->first;
-            CHECK_MPI_ERROR(MPI_Test(&r, &flag, &status));
+        }
+        return !(m_callbacks[0].size() == 0 && m_callbacks[1].size()==0);
+    }
 
-            if (flag)
+
+    
+    template<typename Msg>
+    struct unique_msg_ptr
+    {
+        Msg* m_ptr = nullptr;
+        bool m_delete = false;
+        unique_msg_ptr(){};
+        ~unique_msg_ptr() { if (m_delete && m_ptr) delete m_ptr; }
+        unique_msg_ptr(Msg* ptr, bool delete_) : m_ptr(ptr), m_delete(delete_) {}
+        unique_msg_ptr(const unique_msg_ptr&) = delete;
+        unique_msg_ptr(unique_msg_ptr&& x)
+        {
+            if (m_delete && m_ptr) delete m_ptr;
+            m_ptr = x.m_ptr;
+            m_delete = x.m_delete;
+            x.m_ptr = nullptr;
+            x.m_delete = false;
+        }
+
+        unique_msg_ptr& operator=(const unique_msg_ptr&) = delete;
+        unique_msg_ptr& operator=(const unique_msg_ptr&& x)
+        {
+            if (m_delete && m_ptr) delete m_ptr;
+            m_ptr = x.m_ptr;
+            m_delete = x.m_delete;
+            x.m_ptr = nullptr;
+            x.m_delete = false;
+            return *this;
+        }
+
+        operator bool() const { return m_ptr; }
+
+        Msg* release()
+        {
+            auto ptr = m_ptr;
+            m_ptr = nullptr;
+            m_delete = false;
+            return ptr;
+        }
+
+        Msg* operator->() { return m_ptr; }
+        Msg& operator*() { return *m_ptr; }
+    };
+
+    template<typename Msg>
+    boost::optional<std::pair<future_type,unique_msg_ptr<Msg>>> 
+    detach_send(rank_type rank, tag_type tag) {
+        return detach<Msg>(m_callbacks[0], rank, tag);
+    }
+
+    template<typename Msg>
+    boost::optional<std::pair<future_type,unique_msg_ptr<Msg>>> 
+    detach_recv(rank_type rank, tag_type tag) {
+        return detach<Msg>(m_callbacks[1], rank, tag);
+    }
+
+    template<typename Msg>
+    boost::optional<std::pair<future_type,unique_msg_ptr<Msg>>> 
+    detach(cb_container_t& cb_container, rank_type rank, tag_type tag)
+    {
+        auto it = std::find_if(
+            cb_container.begin(), 
+            cb_container.end(), 
+            [rank, tag](auto const& x) 
             {
-                auto f = std::move(std::get<0>(i->second));
-                auto x = std::get<1>(i->second);
-                auto y = std::get<2>(i->second);
-                i = m_callbacks.erase(i);
-                i = m_callbacks.end();
-                f(x, y);
-                break;
+                return (std::get<1>(x) == rank && std::get<2>(x) == tag);
+            });
+
+        if (it != cb_container.end()) 
+        {
+            auto cb =  std::move(std::get<0>(*it));
+            auto fut = std::move(std::get<3>(*it));
+            cb_container.erase(it);
+            if (auto t_ptr = cb.template target<call_back2_<Msg>>())
+            {
+                return std::make_pair(std::move(fut), unique_msg_ptr<Msg>(&(t_ptr->message()),false));
+            }
+            else if (auto t_ptr = cb.template target<call_back3_<Msg>>())
+            {
+                return std::make_pair(std::move(fut), unique_msg_ptr<Msg>(new Msg(std::move(t_ptr->message())), true));
             }
             else
             {
-                ++i;
+                return std::make_pair(std::move(fut), unique_msg_ptr<Msg>());
             }
-        }
-        return !(m_callbacks.size() == 0);
+        } 
+        else 
+            return boost::none;
     }
+
+    /*template <typename Callback>
+    void attach(future_type const& fut, rank_type rank, tag_type tag, Callback&& cb) {
+
+        auto it = std::find_if(m_callbacks.begin(), m_callbacks.end(),
+            [rank, tag](auto const& x) {
+                if (std::get<1>(x.second) == rank && std::get<2>(x.second) == tag) {
+                    return true;
+                }
+                return false;
+            });
+
+        if (it == m_callbacks.end()) {
+            m_callbacks.emplace(std::make_pair(fut.request(), std::make_tuple(std::forward<Callback>(cb), rank, tag)));
+        } else {
+            throw std::runtime_error("GHEX ERROR: There is already such a request in line");
+        }
+    }*/
 
     /**
          * @brief Function to cancel all pending requests for send/recv with callbacks.
@@ -346,117 +590,37 @@ public:
          */
     bool cancel_callbacks()
     {
-
-        int result = true;
-
-        auto i = m_callbacks.begin();
-        while (i != m_callbacks.end())
-        {
-            MPI_Request r = i->first;
-            CHECK_MPI_ERROR(MPI_Cancel(&r));
-            MPI_Status st;
-            int flag = false;
-            CHECK_MPI_ERROR(MPI_Wait(&r, &st));
-            CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
-            result &= flag;
-            i = m_callbacks.erase(i);
-        }
+        bool result = cancel_callbacks(m_callbacks[0]);
+        result = result && cancel_callbacks(m_callbacks[1]); 
 
         return result;
     }
 
-    /**
-         * @brief Function to cancel a given operation (send/recv) requiring a callback.
-         *
-         * When a send or receive is requested with a callback, the function returns a
-         * handle of type `request_type`. The value can then be used to cancel the request.
-         * Canceling should be an exceptional case, and should not be the main motif of
-         * the application.
-         *
-         * @param req The request value returned by a previous send/recv call with callback.
-         *
-         * @retrun True if the request was cancelled, of if there was not such request.
-         *         False if the request cannot be canceled.
-         */
-    bool cancel_callback(_impl::cb_request_t req)
+    bool cancel_callbacks(cb_container_t& cb_container)
     {
-
-        if (m_callbacks.count(req()) > 0u)
+        int result = true;
+        const unsigned int size = cb_container.size();
+        for (unsigned int i=0; i<size; ++i) 
         {
-            MPI_Request r = req();
+            element_t element = std::move(cb_container.front());
+            cb_container.pop_front();
+            auto& fut = std::get<3>(element);
+            if (!fut.ready())
+            {
+            MPI_Request r = fut.m_req;
             CHECK_MPI_ERROR(MPI_Cancel(&r));
             MPI_Status st;
             int flag = false;
             CHECK_MPI_ERROR(MPI_Wait(&r, &st));
             CHECK_MPI_ERROR(MPI_Test_cancelled(&st, &flag));
-            m_callbacks.erase(req());
-            return flag;
+            if (!flag) std::cout << "  not cancelled!!!" << std::endl;
+            result &= flag;
+            }
         }
-        else
-        {
-            return true;
-        }
+        return result;
     }
 
-    /**
-         * @brief Function to wait on a given operation (send/recv) requiring a callback.
-         * The callback is invoked after the wait is finished.
-         *
-         * When a send or receive is requested with a callback, the function returns a
-         * handle of type `request_type`. The value can then be used to cancel the request.
-         * Canceling should be an exceptional case, and should not be the main motif of
-         * the application.
-         *
-         * @param req The request value returned by a previous send/recv call with callback.
-         */
-    void wait_on_callback(_impl::cb_request_t req)
-    {
 
-        if (m_callbacks.count(req()) > 0u)
-        {
-            MPI_Request r = req();
-            MPI_Status st;
-            CHECK_MPI_ERROR(MPI_Wait(&r, &st));
-
-            auto it = m_callbacks.find(req());
-            auto f = std::move(std::get<0>(it->second));
-            auto x = std::get<1>(it->second);
-            auto y = std::get<2>(it->second);
-            m_callbacks.erase(it);
-            f(x, y);
-        }
-    }
-
-    /**
-         * @brief Function to check if a given operation (send/recv) requiring a callback
-         * is ready for the callback to be called.
-         *
-         * When a send or receive is requested with a callback, the function returns a
-         * handle of type `request_type`. The value can then be used to cancel the request.
-         * Canceling should be an exceptional case, and should not be the main motif of
-         * the application. An unexistent request is ready by default.
-         *
-         * @param req The request value returned by a previous send/recv call with callback.
-         *
-         * @retrun True if the request is ready, of if there was not such request.
-         *         False if the request is not ready yet.
-         */
-    bool ready_on_callback(_impl::cb_request_t req)
-    {
-
-        if (m_callbacks.count(req()) > 0u)
-        {
-            MPI_Request r = req();
-            MPI_Status st;
-            int flag = false;
-            CHECK_MPI_ERROR(MPI_Test(&r, &flag, &st));
-            return flag;
-        }
-        else
-        {
-            return true;
-        }
-    }
 };
 
 } //namespace mpi
