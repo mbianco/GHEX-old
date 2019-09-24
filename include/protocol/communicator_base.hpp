@@ -1,12 +1,12 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_COMMUNICATOR_BASE_HPP
 #define INCLUDED_COMMUNICATOR_BASE_HPP
@@ -14,13 +14,13 @@
 #include "./future.hpp"
 
 namespace gridtools {
-
+namespace ghex {
     namespace protocol {
 
-        /** @brief communicator class which exposes basic communication primitives 
+        /** @brief communicator class which exposes basic communication primitives
          * @tparam P transport protocl tag*/
         template<typename P>
-        class communicator 
+        class old_mpi_communicator
         {
             // concept
             // -------
@@ -32,7 +32,7 @@ namespace gridtools {
         };
 
     } // namespace protocol
-
+} // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_COMMUNICATOR_BASE_HPP */

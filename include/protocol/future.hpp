@@ -1,12 +1,12 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_FUTURE_HPP
 #define INCLUDED_FUTURE_HPP
@@ -14,7 +14,7 @@
 #include <utility>
 
 namespace gridtools {
-
+namespace ghex {
     namespace protocol {
 
         /** @brief future template for non-blocking communication
@@ -26,7 +26,7 @@ namespace gridtools {
             using handle_type = H;
             using value_type  = T;
 
-            future_base(value_type&& data, handle_type&& h) 
+            future_base(value_type&& data, handle_type&& h)
             :   m_data(std::move(data)),
                 m_handle(std::move(h))
             {}
@@ -47,8 +47,8 @@ namespace gridtools {
 
             [[nodiscard]] value_type get() noexcept
             {
-                wait(); 
-                return std::move(m_data); 
+                wait();
+                return std::move(m_data);
             }
 
             value_type m_data;
@@ -61,7 +61,7 @@ namespace gridtools {
         {
             using handle_type = H;
 
-            future_base(handle_type&& h) 
+            future_base(handle_type&& h)
             :   m_handle(std::move(h))
             {}
             future_base(const future_base&) = delete;
@@ -79,16 +79,16 @@ namespace gridtools {
                 return (bool)m_handle.test();
             }
 
-            void get() noexcept 
+            void get() noexcept
             {
-                wait(); 
+                wait();
             }
 
             handle_type m_handle;
         };
 
     } // namespace protocol
-
+} // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_FUTURE_HPP */

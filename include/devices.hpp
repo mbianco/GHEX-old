@@ -1,12 +1,12 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_DEVICES_HPP
 #define INCLUDED_DEVICES_HPP
@@ -16,7 +16,7 @@
 #include <boost/align/aligned_allocator_adaptor.hpp>
 
 namespace gridtools {
-
+namespace ghex {
     namespace device {
 
         struct cpu
@@ -32,23 +32,23 @@ namespace gridtools {
 
             template<typename T>
             using aligned_allocator_type = boost::alignment::aligned_allocator_adaptor<allocator_type<T>, 64>;
-            
+
             template<typename T>
             using vector_type = std::vector<T, aligned_allocator_type<T>>;
 
             template<typename T>
-            static vector_type<T> make_vector(id_type index = default_id()) 
-            { 
+            static vector_type<T> make_vector(id_type index = default_id())
+            {
                 static_assert(std::is_same<decltype(index),id_type>::value, "trick to prevent warnings"); // trick to prevent warnings
-                return vector_type<T>{aligned_allocator_type<T>()}; 
+                return vector_type<T>{aligned_allocator_type<T>()};
             }
 
             template<typename T>
-            static void* align(void* ptr, id_type index = default_id()) 
+            static void* align(void* ptr, id_type index = default_id())
             {
                 static_assert(std::is_same<decltype(index),id_type>::value, "trick to prevent warnings"); // trick to prevent warnings
                 std::size_t space = alignof(T);
-                return std::align(alignof(T), 1, ptr, space); 
+                return std::align(alignof(T), 1, ptr, space);
             }
         };
 
@@ -65,7 +65,7 @@ namespace gridtools {
 
             template<typename T>
             using aligned_allocator_type = boost::alignment::aligned_allocator_adaptor<allocator_type<T>, 64>;
-            
+
             template<typename T>
             using vector_type = std::vector<T, aligned_allocator_type<T>>;
 
@@ -75,25 +75,25 @@ namespace gridtools {
             };*/
 
             template<typename T>
-            static vector_type<T> make_vector(id_type index = default_id()) 
-            { 
+            static vector_type<T> make_vector(id_type index = default_id())
+            {
                 static_assert(std::is_same<decltype(index),id_type>::value, "trick to prevent warnings"); // trick to prevent warnings
-                return vector_type<T>{aligned_allocator_type<T>()}; 
+                return vector_type<T>{aligned_allocator_type<T>()};
             }
 
             template<typename T>
-            static void* align(void* ptr, id_type index = default_id()) 
+            static void* align(void* ptr, id_type index = default_id())
             {
                 static_assert(std::is_same<decltype(index),id_type>::value, "trick to prevent warnings"); // trick to prevent warnings
                 std::size_t space = alignof(T);
-                return std::align(alignof(T), 1, ptr, space); 
+                return std::align(alignof(T), 1, ptr, space);
             }
         };
 
         using device_list = std::tuple<cpu,gpu>;
 
     } // namespace device
-
+} // namespace ghex
 } // namespace gridtools
 
 

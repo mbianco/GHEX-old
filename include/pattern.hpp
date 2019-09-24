@@ -1,22 +1,22 @@
-/* 
+/*
  * GridTools
- * 
+ *
  * Copyright (c) 2014-2019, ETH Zurich
  * All rights reserved.
- * 
+ *
  * Please, refer to the LICENSE file in the root directory.
  * SPDX-License-Identifier: BSD-3-Clause
- * 
+ *
  */
 #ifndef INCLUDED_PATTERN_HPP
 #define INCLUDED_PATTERN_HPP
 
 #include "./protocol/setup.hpp"
-#include "./protocol/mpi.hpp"
+//#include "./protocol/mpi.hpp"
 #include "./buffer_info.hpp"
 
 namespace gridtools {
-
+namespace ghex {
     namespace detail {
         // forward declaration
         template<typename GridType>
@@ -49,7 +49,7 @@ namespace gridtools {
         pattern_container(pattern_container&&) noexcept = default;
 
     private: // private constructor called through make_pattern
-        pattern_container(data_type&& d, int mt) noexcept : m_patterns(d), m_max_tag(mt) 
+        pattern_container(data_type&& d, int mt) noexcept : m_patterns(d), m_max_tag(mt)
         {
             for (auto& p : m_patterns)
                 p.m_container = this;
@@ -82,22 +82,13 @@ namespace gridtools {
 
     namespace detail {
         // implementation detail
-        template<typename GridType, typename P, typename HaloGenerator, typename DomainRange>
-        auto make_pattern(protocol::setup_communicator& setup_comm, protocol::communicator<P>& comm, HaloGenerator&& hgen, DomainRange&& d_range)
+        template<typename GridType, typename TransportLayer, typename HaloGenerator, typename DomainRange>
+        auto make_pattern(protocol::setup_communicator& setup_comm, TransportLayer&& comm, HaloGenerator&& hgen, DomainRange&& d_range)
         {
             using grid_type = typename GridType::template type<typename std::remove_reference_t<DomainRange>::value_type>;
-            return detail::make_pattern_impl<grid_type>::apply(setup_comm, comm, std::forward<HaloGenerator>(hgen), std::forward<DomainRange>(d_range)); 
+            return detail::make_pattern_impl<grid_type>::apply(setup_comm, std::forward<TransportLayer>(comm), std::forward<HaloGenerator>(hgen), std::forward<DomainRange>(d_range));
         }
     } // namespace detail
-
-    // helper function if transport protocol is also MPI
-    template<typename GridType, typename HaloGenerator, typename DomainRange>
-    auto make_pattern(MPI_Comm mpi_comm, HaloGenerator&& hgen, DomainRange&& d_range)
-    {
-        protocol::communicator<protocol::mpi> mpi_comm_(mpi_comm);
-        protocol::setup_communicator setup_comm(mpi_comm);
-        return detail::make_pattern<GridType>(setup_comm, mpi_comm_, hgen, d_range);
-    }
 
     /**
      * @brief construct a pattern for each domain and establish neighbor relationships
@@ -109,15 +100,16 @@ namespace gridtools {
      * @param comm custom communicator used in the actual exchange operations
      * @param hgen receive halo generator function object (emits iteration spaces (global coordinates) or index lists (global indices)
      * @param d_range range of local domains
-     * @return iterable of patterns (one per domain) 
+     * @return iterable of patterns (one per domain)
      */
-    template<typename GridType, typename P, typename HaloGenerator, typename DomainRange>
-    auto make_pattern(MPI_Comm mpi_comm, protocol::communicator<P>& comm, HaloGenerator&& hgen, DomainRange&& d_range)
+    template<typename GridType, typename TransportLayer, typename HaloGenerator, typename DomainRange>
+    auto make_pattern(MPI_Comm mpi_comm, TransportLayer&& comm, HaloGenerator&& hgen, DomainRange&& d_range)
     {
         protocol::setup_communicator setup_comm(mpi_comm);
-        return detail::make_pattern<GridType>(setup_comm, comm, hgen, d_range);
+        return detail::make_pattern<GridType>(setup_comm, std::forward<TransportLayer>(comm), hgen, d_range);
     }
 
+} // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_PATTERN_HPP */

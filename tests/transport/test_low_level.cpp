@@ -9,9 +9,10 @@ int rank;
 /**
  * Simple Send recv on two ranks. P0 sends a message, P1 receives it and check the content.
  */
+namespace ghex = gridtools::ghex;
 
 void test1() {
-    gridtools::ghex::mpi::communicator sr;
+    ghex::communicator<ghex::mpi> sr;
 
     std::vector<unsigned char> smsg = {1,2,3,4,5,6,7,8,9,10};
     std::vector<unsigned char> rmsg(10);
@@ -47,7 +48,7 @@ void test1() {
 }
 
 void test2() {
-    gridtools::ghex::mpi::communicator sr;
+    ghex::communicator<ghex::mpi> sr;
 
     std::vector<unsigned char> smsg = {1,2,3,4,5,6,7,8,9,10};
     std::vector<unsigned char> rmsg(10);
@@ -90,9 +91,9 @@ void test2() {
 }
 
 void test1_mesg() {
-    gridtools::ghex::mpi::communicator sr;
+    ghex::communicator<ghex::mpi> sr;
 
-    gridtools::ghex::mpi::message<> smsg{40, 40};
+    ghex::message<> smsg{40, 40};
 
     int * data = smsg.data<int>();
 
@@ -100,7 +101,7 @@ void test1_mesg() {
         data[i] = i;
     }
 
-    gridtools::ghex::mpi::message<> rmsg{40, 40};
+    ghex::message<> rmsg{40, 40};
 
     if ( rank == 0 ) {
         sr.blocking_send(smsg, 1, 1);
@@ -133,9 +134,9 @@ void test1_mesg() {
 }
 
 void test2_mesg() {
-    gridtools::ghex::mpi::communicator sr;
+    ghex::communicator<ghex::mpi> sr;
 
-    gridtools::ghex::mpi::message<> smsg{40, 40};
+    ghex::message<> smsg{40, 40};
 
     int * data = smsg.data<int>();
 
@@ -143,7 +144,7 @@ void test2_mesg() {
         data[i] = i;
     }
 
-    gridtools::ghex::mpi::message<> rmsg{40, 40};
+    ghex::message<> rmsg{40, 40};
 
     bool arrived = false;
 
@@ -182,9 +183,9 @@ void test2_mesg() {
 }
 
 void test1_shared_mesg() {
-    gridtools::ghex::mpi::communicator sr;
+    ghex::communicator<ghex::mpi> sr;
 
-    gridtools::ghex::mpi::message<> smsg{40, 40};
+    ghex::message<> smsg{40, 40};
 
     int * data = smsg.data<int>();
 
@@ -192,7 +193,7 @@ void test1_shared_mesg() {
         data[i] = i;
     }
 
-    gridtools::ghex::mpi::shared_message<> rmsg{40, 40};
+    ghex::shared_message<> rmsg{40, 40};
 
     if ( rank == 0 ) {
         sr.blocking_send(smsg, 1, 1);
@@ -224,9 +225,9 @@ void test1_shared_mesg() {
 }
 
 void test2_shared_mesg() {
-    gridtools::ghex::mpi::communicator sr;
+    ghex::communicator<ghex::mpi> sr;
 
-    gridtools::ghex::mpi::message<> smsg{40, 40};
+    ghex::message<> smsg{40, 40};
 
     int * data = smsg.data<int>();
 
@@ -234,7 +235,7 @@ void test2_shared_mesg() {
         data[i] = i;
     }
 
-    gridtools::ghex::mpi::shared_message<> rmsg{40, 40};
+    ghex::shared_message<> rmsg{40, 40};
 
     bool arrived = false;
 

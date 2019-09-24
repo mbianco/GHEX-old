@@ -18,8 +18,6 @@ namespace gridtools
 {
 namespace ghex
 {
-namespace mpi
-{
 
 /** message is a class that represents a buffer of bytes. Each transport
      *  layer will need (potentially) a different type of message.
@@ -297,7 +295,6 @@ struct shared_message
     unsigned char *begin() { return m_s_message->begin(); }
     unsigned char *end() const { return m_s_message->end(); }
 };
-} // namespace mpi
 } // namespace ghex
 } // namespace gridtools
 

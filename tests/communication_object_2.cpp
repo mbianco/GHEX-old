@@ -13,6 +13,7 @@
 #include "../include/simple_field_wrapper.hpp"
 #include "../include/structured_pattern.hpp"
 #include "../include/communication_object_2.hpp"
+#include <transport_layer/mpi/communicator.hpp>
 #include <boost/mpi/environment.hpp>
 #include <array>
 #include <iomanip>
@@ -34,9 +35,9 @@ std::ostream& operator<<(std::ostream& os, const std::array<T,N>& arr)
 }
 
 
-using domain_descriptor_type = gridtools::structured_domain_descriptor<int,3>;
+using domain_descriptor_type = gridtools::ghex::structured_domain_descriptor<int,3>;
 template<typename T, typename Device, int... Is>
-using field_descriptor_type  = gridtools::simple_field_wrapper<T,Device,domain_descriptor_type, Is...>;
+using field_descriptor_type  = gridtools::ghex::simple_field_wrapper<T,Device,domain_descriptor_type, Is...>;
 
 
 template<typename T, typename Domain, typename Field>
@@ -122,7 +123,7 @@ bool test0()
     boost::mpi::communicator mpi_comm;
 
     // need communicator to decompose domain
-    gridtools::protocol::communicator<gridtools::protocol::mpi> comm{mpi_comm};
+    gridtools::ghex::communicator<gridtools::ghex::mpi> comm{gridtools::ghex::communicator_traits{mpi_comm}};
 
     // local portion per domain
     const std::array<int,3> local_ext{10,15,20};
@@ -192,21 +193,21 @@ bool test0()
     auto halo_gen2 = domain_descriptor_type::halo_generator_type(g_first, g_last, halos2, periodic);
 
     // make patterns
-    auto pattern1 = gridtools::make_pattern<gridtools::structured_grid>(mpi_comm, halo_gen1, local_domains);
-    auto pattern2 = gridtools::make_pattern<gridtools::structured_grid>(mpi_comm, halo_gen2, local_domains);
+    auto pattern1 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(mpi_comm, gridtools::ghex::communicator<gridtools::ghex::mpi>{}, halo_gen1, local_domains);
+    auto pattern2 = gridtools::ghex::make_pattern<gridtools::ghex::structured_grid>(mpi_comm, gridtools::ghex::communicator<gridtools::ghex::mpi>{}, halo_gen2, local_domains);
 
     // communication object
-    auto co   = gridtools::make_communication_object(pattern1,pattern2);
-    auto co_1 = gridtools::make_communication_object(pattern1,pattern2);
-    auto co_2 = gridtools::make_communication_object(pattern1,pattern2);
+    auto co   = gridtools::ghex::make_communication_object(pattern1,pattern2);
+    auto co_1 = gridtools::ghex::make_communication_object(pattern1,pattern2);
+    auto co_2 = gridtools::ghex::make_communication_object(pattern1,pattern2);
 
     // wrap raw fields
-    auto field_1a = gridtools::wrap_field<gridtools::device::cpu,2,1,0>(local_domains[0].domain_id(), field_1a_raw.data(), offset, local_ext_buffer);
-    auto field_1b = gridtools::wrap_field<gridtools::device::cpu,2,1,0>(local_domains[1].domain_id(), field_1b_raw.data(), offset, local_ext_buffer);
-    auto field_2a = gridtools::wrap_field<gridtools::device::cpu,2,1,0>(local_domains[0].domain_id(), field_2a_raw.data(), offset, local_ext_buffer);
-    auto field_2b = gridtools::wrap_field<gridtools::device::cpu,2,1,0>(local_domains[1].domain_id(), field_2b_raw.data(), offset, local_ext_buffer);
-    auto field_3a = gridtools::wrap_field<gridtools::device::cpu,2,1,0>(local_domains[0].domain_id(), field_3a_raw.data(), offset, local_ext_buffer);
-    auto field_3b = gridtools::wrap_field<gridtools::device::cpu,2,1,0>(local_domains[1].domain_id(), field_3b_raw.data(), offset, local_ext_buffer);
+    auto field_1a = gridtools::ghex::wrap_field<gridtools::ghex::device::cpu,2,1,0>(local_domains[0].domain_id(), field_1a_raw.data(), offset, local_ext_buffer);
+    auto field_1b = gridtools::ghex::wrap_field<gridtools::ghex::device::cpu,2,1,0>(local_domains[1].domain_id(), field_1b_raw.data(), offset, local_ext_buffer);
+    auto field_2a = gridtools::ghex::wrap_field<gridtools::ghex::device::cpu,2,1,0>(local_domains[0].domain_id(), field_2a_raw.data(), offset, local_ext_buffer);
+    auto field_2b = gridtools::ghex::wrap_field<gridtools::ghex::device::cpu,2,1,0>(local_domains[1].domain_id(), field_2b_raw.data(), offset, local_ext_buffer);
+    auto field_3a = gridtools::ghex::wrap_field<gridtools::ghex::device::cpu,2,1,0>(local_domains[0].domain_id(), field_3a_raw.data(), offset, local_ext_buffer);
+    auto field_3b = gridtools::ghex::wrap_field<gridtools::ghex::device::cpu,2,1,0>(local_domains[1].domain_id(), field_3b_raw.data(), offset, local_ext_buffer);
 
     // fill arrays
     fill_values<T1>(local_domains[0], field_1a);

@@ -16,7 +16,7 @@
 #include <iosfwd>
 
 namespace gridtools {
-
+namespace ghex {
     template<typename Array>
     struct coordinate
     {
@@ -207,7 +207,7 @@ namespace gridtools {
         for (int i=1; i<A1_t::size(); ++i) res += std::forward<A1>(l)[i]*std::forward<A2>(r)[i];
         return res;
     }
-
+} // namespace ghex
 } // namespace gridtools
 
 #endif /* INCLUDED_COORDINATE_HPP */
